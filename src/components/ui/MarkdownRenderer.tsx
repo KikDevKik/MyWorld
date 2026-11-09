@@ -11,7 +11,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, mode }) =>
     const components: any = {
         // BOLD: Neon Cyan Glow (Common)
         strong: ({ node, ...props }: any) => (
-            <strong className="text-cyan-400 font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" {...props} />
+            <strong className="text-mira font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" {...props} />
         ),
 
         // ITALICS: Subtle Titanium (Common)
@@ -45,10 +45,10 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, mode }) =>
 
         // LISTS
         ul: ({ node, ...props }: any) => (
-            <ul className={`list-disc list-outside marker:text-cyan-500/50 ${mode === 'full' ? 'ml-6 mb-4 space-y-2' : 'ml-4 mb-2 space-y-0.5'}`} {...props} />
+            <ul className={`list-disc list-outside marker:text-mira/50 ${mode === 'full' ? 'ml-6 mb-4 space-y-2' : 'ml-4 mb-2 space-y-0.5'}`} {...props} />
         ),
         ol: ({ node, ...props }: any) => (
-            <ol className={`list-decimal list-outside marker:text-cyan-500/50 ${mode === 'full' ? 'ml-6 mb-4 space-y-2' : 'ml-4 mb-2 space-y-0.5'}`} {...props} />
+            <ol className={`list-decimal list-outside marker:text-mira/50 ${mode === 'full' ? 'ml-6 mb-4 space-y-2' : 'ml-4 mb-2 space-y-0.5'}`} {...props} />
         ),
         li: ({ node, ...props }: any) => (
             <li className={`text-titanium-300 ${mode === 'full' ? '' : 'text-xs pl-1'}`} {...props} />
@@ -56,7 +56,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, mode }) =>
 
         // BLOCKQUOTES
         blockquote: ({ node, ...props }: any) => (
-            <blockquote className={`border-l-2 border-cyan-500/50 pl-4 italic text-titanium-400 ${mode === 'full' ? 'my-4' : 'my-2 text-xs'}`} {...props} />
+            <blockquote className={`border-l-2 border-mira/50 pl-4 italic text-titanium-400 ${mode === 'full' ? 'my-4' : 'my-2 text-xs'}`} {...props} />
         ),
 
         // CODE (Inline)
@@ -67,14 +67,14 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, mode }) =>
                      <div className="flex items-center justify-between px-4 py-2 bg-titanium-950/50 border-b border-titanium-800">
                         <span className="text-xs text-titanium-500 font-mono uppercase">{match ? match[1] : 'CODE'}</span>
                     </div>
-                    <pre className="p-4 overflow-x-hidden whitespace-pre-wrap break-all text-xs font-mono text-cyan-100/90" style={{ overflowWrap: 'anywhere' }}>
+                    <pre className="p-4 overflow-x-hidden whitespace-pre-wrap break-all text-xs font-mono text-mira/90" style={{ overflowWrap: 'anywhere' }}>
                         <code className={className} {...props}>
                             {children}
                         </code>
                     </pre>
                 </div>
             ) : (
-                <code className="bg-titanium-800 text-cyan-200 px-1 py-0.5 rounded text-xs font-mono break-all whitespace-pre-wrap" {...props}>
+                <code className="bg-titanium-800 text-mira px-1 py-0.5 rounded text-xs font-mono break-all whitespace-pre-wrap" {...props}>
                     {children}
                 </code>
             );

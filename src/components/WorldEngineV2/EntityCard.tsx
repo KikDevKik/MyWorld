@@ -25,9 +25,9 @@ const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: s
         iconColor: 'text-yellow-500'
     },
     location: {
-        border: 'border-cyan-500',
+        border: 'border-mira/40',
         shadow: 'shadow-[0_0_15px_rgba(6,182,212,0.5)]', // Cyan-500
-        iconColor: 'text-cyan-500'
+        iconColor: 'text-mira'
     },
     idea: {
         border: 'border-purple-500',
@@ -161,14 +161,14 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                 {isEditing ? (
                     <div className="flex flex-col gap-2 pointer-events-auto" onClick={e => e.stopPropagation()}>
                          <input
-                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-cyan-500"
+                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-mira/40"
                             value={editName}
                             onChange={e => setEditName(e.target.value)}
                             onKeyDown={e => e.stopPropagation()}
                             placeholder={`${t.common?.name || "Nombre"}...`}
                         />
                         <textarea
-                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-cyan-500"
+                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-mira/40"
                             rows={2}
                             value={editDesc}
                             onChange={e => setEditDesc(e.target.value)}
@@ -215,7 +215,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
 
                         {/* Subtype Display (Micro Only) */}
                         {isMicro && (node as any).subtype && (
-                             <div className="text-[9px] text-cyan-500/80 font-mono tracking-wider uppercase">
+                             <div className="text-[9px] text-mira/80 font-mono tracking-wider uppercase">
                                  {(node as any).subtype}
                              </div>
                         )}

@@ -82,7 +82,7 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
     }
 
     const isBestiary = activeChar.category === 'CREATURE' || activeChar.category === 'FLORA';
-    const headerColor = activeChar.category === 'FLORA' ? 'text-pink-400' : (activeChar.category === 'CREATURE' ? 'text-purple-400' : 'text-cyan-400');
+    const headerColor = activeChar.category === 'FLORA' ? 'text-pink-400' : (activeChar.category === 'CREATURE' ? 'text-purple-400' : 'text-mira');
 
     return (
         <div className="h-full flex flex-col bg-titanium-950 relative">

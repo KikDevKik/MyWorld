@@ -137,7 +137,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
                     <div className={`
                         p-3 rounded-lg border flex flex-col gap-2 items-center justify-center transition-all duration-500
                         ${!isOffline
-                            ? 'bg-cyan-950/20 border-cyan-900/50 text-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.1)]'
+                            ? 'bg-mira/15 border-mira/50 text-mira shadow-[0_0_10px_rgba(6,182,212,0.1)]'
                             : 'bg-amber-950/20 border-amber-900/50 text-amber-500'}
                     `}>
                         {!isOffline ? <Cloud size={24} /> : <CloudOff size={24} />}
@@ -157,8 +157,8 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
                          <button
                             onClick={toggleShowOnlyHealthy}
                             className={`
-                                relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-titanium-900
-                                ${showOnlyHealthy ? 'bg-cyan-600' : 'bg-titanium-700'}
+                                relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-mira/60 focus:ring-offset-2 focus:ring-offset-titanium-900
+                                ${showOnlyHealthy ? 'bg-mira/25' : 'bg-titanium-700'}
                             `}
                             title={t.common?.hideCorruptFiles || "Ocultar archivos corruptos o en conflicto"}
                          >
@@ -207,7 +207,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
                             <button
                                 onClick={handleScan}
                                 disabled={isScanning}
-                                className="w-full py-2 px-3 rounded bg-titanium-800 hover:bg-titanium-700 text-titanium-300 text-[10px] font-bold uppercase tracking-wide transition-all border border-titanium-700 hover:border-cyan-500/30 flex items-center justify-center gap-2"
+                                className="w-full py-2 px-3 rounded bg-titanium-800 hover:bg-titanium-700 text-titanium-300 text-[10px] font-bold uppercase tracking-wide transition-all border border-titanium-700 hover:border-mira/30 flex items-center justify-center gap-2"
                             >
                                 {isScanning ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                                 {isScanning ? (t.common?.scanning || "Escaneando...") : (t.common?.startScan || "Iniciar Escaneo")}
@@ -267,7 +267,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
                     <div className="grid grid-cols-2 gap-2 text-xs text-titanium-300">
                         <div className="bg-titanium-900/50 p-2 rounded flex justify-between">
                             <span>{t.common?.files || "Archivos"}:</span>
-                            <span className="font-mono text-cyan-500">{fileTree ? fileTree.length : '...'}</span>
+                            <span className="font-mono text-mira">{fileTree ? fileTree.length : '...'}</span>
                         </div>
                         <div className="bg-titanium-900/50 p-2 rounded flex justify-between">
                             <span>{t.common?.status || "Estado"}:</span>

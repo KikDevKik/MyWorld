@@ -11,7 +11,8 @@ import { google } from "./utils/gapi";
 import { TaskType } from "./utils/genai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { aiText } from "./utils/ai_text";
 import { getMemoryContext } from "./utils/memory_store";
 import { getAIKey } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
@@ -151,10 +152,6 @@ export const whatIf = onCall(
             return { ideas: (res.data.files || []).map((f: any) => ({ id: f.id, name: String(f.name || "").replace(/\.md$/i, ""), modifiedTime: f.modifiedTime })) };
         }
 
-        if (!claudeEnabledForCurrentUser()) {
-            throw new HttpsError("failed-precondition", "«Qué pasaría si» usa Claude y todavía no está activo para tu cuenta.");
-        }
-
         if (mode === "send") {
             const message = String(request.data?.message || "").trim().slice(0, 4000);
             if (!message) throw new HttpsError("invalid-argument", "Escribe algo para empezar.");
@@ -190,7 +187,7 @@ export const whatIf = onCall(
             ].filter(Boolean).join("\n\n");
             const convo = recent.map(m => `${m.role === "user" ? "AUTOR" : "TÚ"}: ${m.role === "assistant" && m.text.length > 1500 ? m.text.slice(0, 1500) + " […]" : m.text}`).join("\n\n");
 
-            const r = await callClaude({
+            const r = await aiText({
                 model: CLAUDE_SONNET,
                 system: [{ text: WHATIF_SYSTEM + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
                 content: [{ type: "text", text: [context, convo ? `CONVERSACIÓN HASTA AHORA:\n${convo}` : "", `AUTOR: ${message}`].filter(Boolean).join("\n\n") }],
@@ -214,7 +211,7 @@ export const whatIf = onCall(
             if (!history.length) throw new HttpsError("failed-precondition", "Todavía no hay conversación que guardar.");
             const upTo = Number.isInteger(request.data?.upTo) ? request.data.upTo : history.length - 1;
             const slice = history.slice(Math.max(0, upTo - 11), upTo + 1);
-            const r = await callClaude({
+            const r = await aiText({
                 model: CLAUDE_HAIKU,
                 system: [{ text: DISTILL_TASK, cache: true }],
                 content: [{ type: "text", text: slice.map(m => `${m.role === "user" ? "AUTOR" : "IA"}: ${m.text}`).join("\n\n") + "\n\nResponde SOLO con el JSON." }],

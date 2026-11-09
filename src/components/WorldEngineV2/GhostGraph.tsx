@@ -141,11 +141,11 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
             {/* Zero State UI */}
             {nodes.length === 0 && (
                 <div className="z-10 flex flex-col items-center justify-center pointer-events-none select-none">
-                    <div className="font-mono text-cyan-500/50 text-xs tracking-[0.3em] animate-pulse">
+                    <div className="font-mono text-mira/50 text-xs tracking-[0.3em] animate-pulse">
                         AWAITING NEURAL INPUT...
                     </div>
                     {/* Optional Scanline or decorative element */}
-                    <div className="mt-2 w-16 h-[1px] bg-cyan-500/20" />
+                    <div className="mt-2 w-16 h-[1px] bg-mira/20" />
                 </div>
             )}
 

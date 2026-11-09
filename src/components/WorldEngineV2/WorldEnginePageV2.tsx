@@ -789,7 +789,7 @@ const WorldEnginePageV2: React.FC<{
              <AnimatePresence>
                 {loading && (
                     <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-titanium-900 z-[100] flex items-center justify-center pointer-events-none">
-                         <div className="text-cyan-500 font-mono tracking-widest animate-pulse">
+                         <div className="text-mira font-mono tracking-widest animate-pulse">
                              {TRANSLATIONS[currentLanguage].nexus.loading || "INICIANDO MOTOR V2..."}
                          </div>
                     </motion.div>
@@ -851,8 +851,8 @@ const WorldEnginePageV2: React.FC<{
                         {/* 🟢 ZOOM CONTROLS */}
                         {showUI && (
                             <div className="absolute bottom-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
-                                <button onClick={() => zoomIn()} aria-label={tNexus.zoomIn || "Acercar vista"} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
-                                <button onClick={() => zoomOut()} aria-label={tNexus.zoomOut || "Alejar vista"} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
+                                <button onClick={() => zoomIn()} aria-label={tNexus.zoomIn || "Acercar vista"} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-mira/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
+                                <button onClick={() => zoomOut()} aria-label={tNexus.zoomOut || "Alejar vista"} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-mira/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
                             </div>
                         )}
                     </>
@@ -863,7 +863,7 @@ const WorldEnginePageV2: React.FC<{
                  <button
                     onClick={() => setShowUI(!showUI)}
                     aria-label={showUI ? (t.nexus?.hideUI || "Ocultar Interfaz") : (t.nexus?.showUI || "Mostrar Interfaz")}
-                    className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"
+                    className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-mira/50 transition-colors text-slate-300 hover:text-white"
                  >
                      {showUI ? <EyeOff size={20} /> : <Eye size={20} />}
                  </button>
@@ -878,20 +878,20 @@ const WorldEnginePageV2: React.FC<{
                         aria-label={isScanning ? (t.nexus?.scanning || "Escaneando Nexus...") : (t.nexus?.startScan || "Iniciar Escaneo Nexus")}
                         className={`
                             group relative flex items-center justify-center px-8 py-4
-                            bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full
+                            bg-mira/15 backdrop-blur-xl border border-mira/30 rounded-full
                             transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.1)]
-                            ${isScanning ? 'w-[400px] cursor-wait border-cyan-500/80 bg-cyan-950/50' : 'hover:bg-cyan-900/30 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
+                            ${isScanning ? 'w-[400px] cursor-wait border-mira/80 bg-mira/15' : 'hover:bg-mira/15 hover:border-mira/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
                         `}
                      >
                          {isScanning ? (
                              <div className="flex items-center gap-3">
-                                 <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
-                                 <span className="font-mono text-xs font-bold text-cyan-300 tracking-widest animate-pulse">{scanStatus}</span>
+                                 <Loader2 className="w-5 h-5 text-mira animate-spin" />
+                                 <span className="font-mono text-xs font-bold text-mira tracking-widest animate-pulse">{scanStatus}</span>
                              </div>
                          ) : (
                              <>
-                                <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
-                                <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">{tNexus.toolName?.toUpperCase() || 'NEXUS'}</span>
+                                <Globe className="w-6 h-6 text-mira group-hover:scale-110 transition-transform duration-300" />
+                                <span className="ml-3 font-mono font-bold text-mira tracking-[0.2em] group-hover:text-mira transition-colors">{tNexus.toolName?.toUpperCase() || 'NEXUS'}</span>
                                 <span className="ml-3 px-2 py-0.5 bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9px] font-mono tracking-[0.12em] uppercase rounded-md cursor-help" title="Esta herramienta está en desarrollo activo. Tu feedback ayuda a mejorarla.">ALPHA</span>
                              </>
                          )}

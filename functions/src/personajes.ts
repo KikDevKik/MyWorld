@@ -14,7 +14,8 @@ import { google } from "./utils/gapi";
 import { TaskType } from "./utils/genai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { aiText } from "./utils/ai_text";
 import { getMemoryContext, slugify } from "./utils/memory_store";
 import { planContext } from "./plan_context";
 import { getAIKey } from "./utils/security";
@@ -78,7 +79,7 @@ function parseJson(text: string): any {
 }
 
 async function claude(model: string, system: string, user: string, label: string, maxTokens: number, effort: "low" | "medium" = "low"): Promise<string> {
-    const r = await callClaude({
+    const r = await aiText({
         model, system: [{ text: system + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
         content: [{ type: "text", text: user }], maxTokens, effort, label,
     } as any);
@@ -203,7 +204,6 @@ export const personajes = onCall(
             return { personaje: p, analisis: s.analisis || null, analisisHash: s.analisisHash || null, mensajes: s.mensajes || [] };
         }
 
-        if (!claudeEnabledForCurrentUser()) throw new HttpsError("failed-precondition", "Personajes usa Claude y todavía no está activo para tu cuenta.");
 
         // 1. Escanear el canon
         if (mode === "scan") return runPersonajesScan(uid);

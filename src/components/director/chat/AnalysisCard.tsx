@@ -39,13 +39,13 @@ export const AnalysisCard: React.FC<AnalysisCardProps> = ({ data }) => {
                         <div key={i} className="flex flex-col bg-titanium-900/50 p-3 rounded border border-titanium-800 hover:border-amber-500/30 transition-colors">
                             <div className="flex justify-between items-start mb-1">
                                 <div className="flex items-center gap-2">
-                                    <User size={12} className={ent.status === 'DETECTED' ? 'text-cyan-400' : 'text-titanium-500'} />
-                                    <span className={`text-xs font-bold ${ent.status === 'DETECTED' ? 'text-cyan-400' : 'text-titanium-300'}`}>
+                                    <User size={12} className={ent.status === 'DETECTED' ? 'text-mira' : 'text-titanium-500'} />
+                                    <span className={`text-xs font-bold ${ent.status === 'DETECTED' ? 'text-mira' : 'text-titanium-300'}`}>
                                         {ent.name}
                                     </span>
                                 </div>
                                 {ent.status === 'DETECTED' && (
-                                    <span className="px-1.5 py-0.5 bg-cyan-900/30 text-cyan-400 text-[9px] rounded uppercase font-bold tracking-wider flex items-center gap-1">
+                                    <span className="px-1.5 py-0.5 bg-mira/15 text-mira text-[9px] rounded uppercase font-bold tracking-wider flex items-center gap-1">
                                         <AlertTriangle size={8} /> Nuevo
                                     </span>
                                 )}
@@ -55,7 +55,7 @@ export const AnalysisCard: React.FC<AnalysisCardProps> = ({ data }) => {
 
                             {ent.status === 'DETECTED' && (
                                 <button
-                                    className="mt-1 flex items-center justify-center gap-2 w-full py-1.5 bg-titanium-800 hover:bg-cyan-900/20 text-titanium-400 hover:text-cyan-400 text-[10px] uppercase font-bold rounded transition-colors border border-transparent hover:border-cyan-500/30"
+                                    className="mt-1 flex items-center justify-center gap-2 w-full py-1.5 bg-titanium-800 hover:bg-mira/15 text-titanium-400 hover:text-mira text-[10px] uppercase font-bold rounded transition-colors border border-transparent hover:border-mira/30"
                                     onClick={() => toast.info('Para crear su ficha, abre la pestaña Personajes en la mesa del Arquitecto.')}
                                     title="Ir a la Forja (Solo Lectura)"
                                 >

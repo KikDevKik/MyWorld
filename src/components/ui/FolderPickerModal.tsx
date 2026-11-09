@@ -94,24 +94,24 @@ const FolderPickerModal: React.FC<FolderPickerModalProps> = ({
             <div key={node.id}>
                 <div
                     className={`flex items-center gap-1.5 py-1.5 pr-2 rounded-lg text-xs cursor-pointer transition-colors
-                        ${isSelected ? 'bg-cyan-900/40 text-cyan-200' : isCurrent ? 'text-titanium-500' : 'text-titanium-300 hover:bg-titanium-800 hover:text-white'}`}
+                        ${isSelected ? 'bg-mira/15 text-mira' : isCurrent ? 'text-titanium-500' : 'text-titanium-300 hover:bg-titanium-800 hover:text-white'}`}
                     style={{ paddingLeft: `${depth * 14 + 6}px` }}
                     onClick={() => { if (!isCurrent) setSelected(node); }}
                     onDoubleClick={() => toggle(node)}
                 >
                     <button
                         type="button"
-                        className="shrink-0 w-4 h-4 flex items-center justify-center text-titanium-500 hover:text-cyan-400"
+                        className="shrink-0 w-4 h-4 flex items-center justify-center text-titanium-500 hover:text-mira"
                         onClick={(e) => { e.stopPropagation(); toggle(node); }}
                         aria-label={isOpenNode ? 'Cerrar carpeta' : 'Abrir carpeta'}
                     >
-                        {isLoading ? <Loader2 size={12} className="animate-spin text-cyan-500" />
+                        {isLoading ? <Loader2 size={12} className="animate-spin text-mira" />
                             : isOpenNode ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </button>
                     {isOpenNode ? <FolderOpen size={13} className="text-amber-400 shrink-0" /> : <Folder size={13} className="text-amber-400 shrink-0" />}
                     <span className="truncate flex-1">{node.name}</span>
                     {isCurrent && <span className="text-[9px] uppercase tracking-wide text-titanium-600">aquí está</span>}
-                    {isSelected && <Check size={12} className="text-cyan-400 shrink-0" />}
+                    {isSelected && <Check size={12} className="text-mira shrink-0" />}
                 </div>
                 {isOpenNode && kids && kids.length === 0 && !isLoading && (
                     <div className="text-[10px] text-titanium-600 py-1" style={{ paddingLeft: `${(depth + 1) * 14 + 26}px` }}>Sin subcarpetas</div>
@@ -155,7 +155,7 @@ const FolderPickerModal: React.FC<FolderPickerModalProps> = ({
                     <button
                         disabled={!selected || isBusy}
                         onClick={() => selected && onConfirm(selected.id, selected.name)}
-                        className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-cyan-700 hover:bg-cyan-600 text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 truncate"
+                        className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-mira/25 hover:bg-mira/25 text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 truncate"
                     >
                         {isBusy && <Loader2 size={12} className="animate-spin" />}
                         {selected ? `Mover a «${selected.name}»` : 'Elige una carpeta'}

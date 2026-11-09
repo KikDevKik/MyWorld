@@ -82,7 +82,7 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
     const s = es ? STR.es : STR.en;
     const tips = getTips(currentLanguage);
     const tip = tips[new Date().getDate() % tips.length];
-    const week = useMemo(weekActivity, []);
+    const weekRaw = useMemo(weekActivity, []);
     const today = (new Date().getDay() + 6) % 7;
     const stars = useMemo(() => Array.from({ length: 34 }, (_, i) => ({ x: (i * 37) % 97, y: (i * 23) % 62, big: i % 7 === 0, d: (i % 5) * 0.7 })), []);
     // Nov 2026: también desde la nube (otro computador u otro navegador).
@@ -94,6 +94,15 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
         return () => window.removeEventListener(LAST_DOC_EVENT, on);
     }, [folderId]);
     const last = useMemo(() => readLastDoc(folderId), [folderId, lastTick]);
+    // Nov 2026: si escribiste hoy (o esta semana) pero pegaste el texto de golpe, la meta no lo contaba y la tarjeta
+    // decía «Todavía no escribes esta semana» al lado de «La última vez escribiste… hoy». El día del último documento cuenta.
+    const week = useMemo(() => {
+        if (!last?.at) return weekRaw;
+        const now = new Date(); const dow = (now.getDay() + 6) % 7;
+        const monday = new Date(now); monday.setHours(0, 0, 0, 0); monday.setDate(now.getDate() - dow);
+        const i = Math.floor((last.at - monday.getTime()) / 86400000);
+        return i >= 0 && i < 7 && !weekRaw[i] ? weekRaw.map((w, k) => (k === i ? 1 : w)) : weekRaw;
+    }, [weekRaw, last?.at]);
     const { misiones } = useMisionesEditor(sessionId || null);
     const pendingItems = useArquitectoStore(st => st.arquitectoPendingItems);
     const nextMission = misiones.find(m => !m.completed);

@@ -97,9 +97,9 @@ const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: s
         iconColor: 'text-yellow-500'
     },
     location: {
-        border: 'border-cyan-500',
+        border: 'border-mira/40',
         shadow: 'shadow-[0_0_15px_rgba(6,182,212,0.5)]', // Cyan-500
-        iconColor: 'text-cyan-500'
+        iconColor: 'text-mira'
     },
     idea: {
         border: 'border-purple-500',
@@ -153,7 +153,7 @@ const FactionLabel: React.FC<{ name: string, x: number, y: number, count: number
         <div className="text-[60px] font-black text-white/10 uppercase tracking-[0.2em] drop-shadow-2xl whitespace-nowrap select-none">
             {name}
         </div>
-        <div className="text-sm text-cyan-500/50 font-mono tracking-[0.5em] uppercase mt-2 bg-black/50 px-2 rounded">
+        <div className="text-sm text-mira/50 font-mono tracking-[0.5em] uppercase mt-2 bg-black/50 px-2 rounded">
             {count} NODES
         </div>
     </div>
@@ -271,14 +271,14 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                 {isEditing ? (
                     <div className="flex flex-col gap-2 pointer-events-auto" onClick={e => e.stopPropagation()}>
                         <input
-                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-cyan-500"
+                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-mira/40"
                             value={editName}
                             onChange={e => setEditName(e.target.value)}
                             onKeyDown={e => e.stopPropagation()}
                             placeholder="Nombre..."
                         />
                         <textarea
-                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-cyan-500"
+                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-mira/40"
                             rows={2}
                             value={editDesc}
                             onChange={e => setEditDesc(e.target.value)}
@@ -932,7 +932,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
             <AnimatePresence>
                 {loading && (
                     <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-titanium-900 z-[100] flex items-center justify-center pointer-events-none">
-                        <div className="text-cyan-500 font-mono">{tNexus.loading}</div>
+                        <div className="text-mira font-mono">{tNexus.loading}</div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -1001,7 +1001,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                 <div className="bg-slate-950/90 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl p-1 flex flex-col gap-0">
                     <form onSubmit={handleInputEnter} className="flex items-center gap-2 p-2">
                         <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800">
-                            {isGenerating ? <Loader2 size={16} className="animate-spin text-cyan-500" /> : <Globe size={16} className="text-cyan-500" />}
+                            {isGenerating ? <Loader2 size={16} className="animate-spin text-mira" /> : <Globe size={16} className="text-mira" />}
                         </div>
                         <input
                             type="text"
@@ -1016,7 +1016,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                     </form>
                     {/* Entropy Slider */}
                     <div className="h-1 w-full bg-slate-900 relative rounded-full overflow-hidden mx-2 mb-2 max-w-[96%] self-center">
-                        <div className={`absolute top-0 left-0 h-full ${entropy > 0.6 ? "bg-red-500" : "bg-cyan-500"}`} style={{ width: `${entropy * 100}%` }} />
+                        <div className={`absolute top-0 left-0 h-full ${entropy > 0.6 ? "bg-red-500" : "bg-mira/25"}`} style={{ width: `${entropy * 100}%` }} />
                         <input type="range" aria-label={tNexus.chaosLevel || "Chaos Level"} min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
                     </div>
                 </div>

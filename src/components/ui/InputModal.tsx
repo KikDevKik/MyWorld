@@ -114,7 +114,7 @@ const InputModal: React.FC<InputModalProps> = ({
                                 className={`w-full bg-titanium-950 border rounded-lg px-4 py-3 text-sm text-titanium-100 placeholder-titanium-600 focus:outline-none focus:ring-1 transition-all mb-6 ${
                                     isShaking
                                         ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20'
-                                        : 'border-titanium-700 focus:border-cyan-500 focus:ring-cyan-500/50'
+                                        : 'border-titanium-700 focus:border-mira/40 focus:ring-mira/50'
                                 }`}
                                 aria-label={title}
                             />
@@ -130,7 +130,7 @@ const InputModal: React.FC<InputModalProps> = ({
                                 <button
                                     type="submit"
                                     // Removed disabled state to allow clicking and triggering shake
-                                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-cyan-900/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-4 py-2 bg-mira/25 hover:bg-mira/25 text-white text-xs font-bold rounded-lg shadow-lg shadow-mira/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <Check size={14} />
                                     {confirmText}

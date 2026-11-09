@@ -498,7 +498,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
     // Border Color Logic
     const getBorderColor = () => {
         switch (mode) {
-            case 'RIGOR': return 'border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.1)]';
+            case 'RIGOR': return 'border-mira/50 shadow-[0_0_50px_rgba(6,182,212,0.1)]';
             case 'ENTROPIA': return 'border-violet-500/50 shadow-[0_0_50px_rgba(139,92,246,0.1)]';
             default: return 'border-white/10 shadow-2xl';
         }
@@ -514,8 +514,8 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 {/* HEADER */}
                 <div className="h-14 border-b border-white/10 flex items-center justify-between px-6 bg-black/50 select-none">
                      <div className="flex items-center gap-4">
-                        <div className={`w-3 h-3 rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.5)] ${mode === 'RIGOR' ? 'bg-cyan-500 shadow-cyan-500/50' : mode === 'ENTROPIA' ? 'bg-violet-500 shadow-violet-500/50' : 'bg-slate-400'}`} />
-                        <span className={`font-mono text-sm font-bold tracking-widest ${mode === 'RIGOR' ? 'text-cyan-500' : mode === 'ENTROPIA' ? 'text-violet-500' : 'text-slate-400'}`}>THE BUILDER</span>
+                        <div className={`w-3 h-3 rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.5)] ${mode === 'RIGOR' ? 'bg-mira/25 shadow-mira/50' : mode === 'ENTROPIA' ? 'bg-violet-500 shadow-violet-500/50' : 'bg-slate-400'}`} />
+                        <span className={`font-mono text-sm font-bold tracking-widest ${mode === 'RIGOR' ? 'text-mira' : mode === 'ENTROPIA' ? 'text-violet-500' : 'text-slate-400'}`}>THE BUILDER</span>
                      </div>
 
                      {/* CENTER ACTIONS */}
@@ -589,7 +589,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                         <div className={`
                                             max-w-[80%] p-3 rounded-lg border
                                             ${msg.role === 'user'
-                                                ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-100 rounded-br-none'
+                                                ? 'bg-mira/15 border-mira/30 text-mira rounded-br-none'
                                                 : 'bg-zinc-900/50 border-white/10 text-slate-300 rounded-bl-none'}
                                         `}>
                                             <div className="prose prose-invert prose-sm max-w-none break-words">
@@ -602,7 +602,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                 ))}
                                 {isTyping && (
                                     <div className="flex justify-start">
-                                        <div className="flex gap-1 items-center p-3 text-cyan-500">
+                                        <div className="flex gap-1 items-center p-3 text-mira">
                                             <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }}/>
                                             <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }}/>
                                             <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }}/>
@@ -638,7 +638,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
 
                                 {/* Overlay Stats */}
                                 <div className="absolute top-4 right-4 flex flex-col items-end pointer-events-none">
-                                    <div className="text-[10px] font-mono text-cyan-500/50 uppercase tracking-widest mb-1">Preview Mode</div>
+                                    <div className="text-[10px] font-mono text-mira/50 uppercase tracking-widest mb-1">Preview Mode</div>
                                     <div className="flex gap-2">
                                         <div className="px-2 py-1 bg-black/60 backdrop-blur rounded border border-white/10 text-xs text-slate-400 font-mono">
                                             {ghostNodes.length} Nodes

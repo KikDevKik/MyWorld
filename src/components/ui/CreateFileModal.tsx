@@ -167,7 +167,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
             className="max-w-md"
             title={
                 <>
-                    <FilePlus size={20} className="text-cyan-500"/>
+                    <FilePlus size={20} className="text-mira"/>
                     {t.editor.createNew}
                 </>
             }
@@ -182,7 +182,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                     <button
                         onClick={handleSubmit}
                         disabled={isSubmitting || !fileName.trim() || !selectedFolder}
-                        className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-cyan-600 text-white hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-mira/25 text-white hover:bg-mira/25 transition-all shadow-lg shadow-mira/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isSubmitting ? <Loader2 size={16} className="animate-spin"/> : <Save size={16} />}
                         {isSubmitting ? t.common.creating : t.common.create}
@@ -205,7 +205,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                         value={fileName}
                         onChange={(e) => setFileName(e.target.value)}
                         placeholder="Ej. Capítulo 1: El Inicio"
-                        className="w-full bg-titanium-950 border border-titanium-700 rounded-lg px-4 py-3 text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
+                        className="w-full bg-titanium-950 border border-titanium-700 rounded-lg px-4 py-3 text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:ring-2 focus:ring-mira/50 transition-all"
                         autoFocus
                     />
                     <p className="text-[10px] text-titanium-500">
@@ -236,7 +236,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                         </div>
                         <button
                             onClick={() => setShowFolderList(v => !v)}
-                            className="text-xs font-medium text-cyan-500 hover:text-cyan-400 hover:underline px-2 py-1 shrink-0"
+                            className="text-xs font-medium text-mira hover:text-mira hover:underline px-2 py-1 shrink-0"
                         >
                             {t.common.change}
                         </button>
@@ -249,7 +249,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                                     onClick={() => { setSelectedFolder(folder); setShowFolderList(false); }}
                                     className={`flex items-center gap-2 px-3 py-2 rounded-md text-left text-[12px] transition-colors ${
                                         selectedFolder?.id === folder.id
-                                            ? 'bg-cyan-500/10 text-cyan-300'
+                                            ? 'bg-mira/10 text-mira'
                                             : 'text-titanium-400 hover:bg-titanium-800/60 hover:text-titanium-200'
                                     }`}
                                 >

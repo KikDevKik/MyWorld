@@ -40,7 +40,7 @@ const SelectorNode: React.FC<{
                 className={`
                     flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer transition-all
                     ${isSelected
-                        ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-500/30'
+                        ? 'bg-mira/15 text-mira border border-mira/30'
                         : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'
                     }
                 `}
@@ -58,13 +58,13 @@ const SelectorNode: React.FC<{
                     )}
                 </div>
 
-                <div className={`shrink-0 ${isSelected ? 'text-cyan-400' : 'text-zinc-500'}`}>
+                <div className={`shrink-0 ${isSelected ? 'text-mira' : 'text-zinc-500'}`}>
                     <Folder size={16} fill={isSelected ? "currentColor" : "none"} />
                 </div>
 
                 <span className="text-sm truncate font-medium flex-1">{node.name}</span>
 
-                {isSelected && <Check size={14} className="text-cyan-400" />}
+                {isSelected && <Check size={14} className="text-mira" />}
             </div>
 
             {isOpen && node.children && (
@@ -160,7 +160,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                 {/* HEADER */}
                 <div className="h-14 flex items-center justify-between px-6 border-b border-white/10 bg-black/50 shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-cyan-950/30 rounded-lg border border-cyan-900/50 text-cyan-400">
+                        <div className="p-2 bg-mira/15 rounded-lg border border-mira/50 text-mira">
                             <Folder size={18} />
                         </div>
                         <div>
@@ -181,7 +181,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-40 text-zinc-500 gap-3">
-                            <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-6 h-6 border-2 border-mira/40 border-t-transparent rounded-full animate-spin"></div>
                             <p className="text-xs font-mono">{t.common?.scanningEntities || "SCANNING ENTITIES..."}</p>
                         </div>
                     ) : isEmpty ? (

@@ -10,7 +10,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { aiText } from "./utils/ai_text";
 import { getMemoryContext, applyMemoryOps } from "./utils/memory_store";
 import { planContext, markMissionsDone } from "./plan_context";
 import { textHash } from "./utils/text_hash";
@@ -179,7 +180,7 @@ function parseJsonReply(text: string): any {
 
 // Llamada común: sistema fijo (caché 1 h) + capítulo (caché 1 h) + tarea y contexto (sin caché).
 async function runReview(task: string, chapter: string, fileName: string, extra: string, opts: { maxTokens: number; effort: "low" | "medium"; label: string; model?: string }) {
-    const r = await callClaude({
+    const r = await aiText({
         model: opts.model || CLAUDE_SONNET,
         system: [{ text: EDITOR_BASE + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
         content: [
@@ -361,7 +362,6 @@ export const chapterReport = onCall(
                 return { found: true, dudas, archivo: file.name };
             }
 
-            if (!claudeEnabledForCurrentUser()) throw new HttpsError("failed-precondition", "El chat de dudas usa Claude y todavía no está activo para tu cuenta.");
             const mensajes: { role: string; text: string }[] = (Array.isArray(request.data?.mensajes) ? request.data.mensajes : []).slice(-10)
                 .map((m: any) => ({ role: m?.role === "mira" ? "mira" : "autor", text: String(m?.text || "").slice(0, 2000) })).filter((m: any) => m.text.trim());
             if (!mensajes.some(m => m.role === "autor")) throw new HttpsError("invalid-argument", "Escribe tu respuesta a la duda.");
@@ -385,7 +385,7 @@ export const chapterReport = onCall(
                 memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
                 `CONVERSACIÓN:\n${mensajes.map(m => `${m.role === "mira" ? "Mira" : "Autor"}: ${m.text}`).join("\n")}`,
             ].filter(Boolean).join("\n\n");
-            const r = await callClaude({
+            const r = await aiText({
                 model: CLAUDE_SONNET,
                 system: [{ text: DOUBT_SYSTEM + "\n\n" + MYWORLD_VOICE, cache: true }],
                 content: [{ type: "text", text: contexto + "\n\nResponde SOLO con el JSON." }],
@@ -420,9 +420,6 @@ export const chapterReport = onCall(
         const text = String(content || "");
         if (text.trim().length < 300) throw new HttpsError("invalid-argument", "El capítulo es demasiado corto para un reporte.");
         if (text.length > 120000) throw new HttpsError("invalid-argument", "El capítulo es demasiado largo (máx. ~20.000 palabras).");
-        if (!claudeEnabledForCurrentUser()) {
-            throw new HttpsError("failed-precondition", "El reporte de capítulo usa Claude y todavía no está activo para tu cuenta.");
-        }
 
         const name = fileName || "(sin nombre)";
         const hash = textHash(text);

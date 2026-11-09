@@ -6,7 +6,7 @@ import { AsyncLocalStorage } from "async_hooks";
 // aiLevel (Config IA, oct 2026): 'gratis' = clave gratis de Gemini; 'propia' = clave de pago del autor
 // (Gemini con facturación y/o Anthropic); 'myworld' = Claude incluido, lo paga MyWorld.
 export type AiLevel = 'gratis' | 'propia' | 'myworld';
-export interface RequestContext { uid?: string; claudeQuality?: 'calidad' | 'economico'; aiLevel?: AiLevel; anthropicKey?: string; }
+export interface RequestContext { uid?: string; claudeQuality?: 'calidad' | 'economico'; aiLevel?: AiLevel; anthropicKey?: string; geminiKey?: string; }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();
 
@@ -22,6 +22,11 @@ export function getAiLevel(): AiLevel | undefined {
 export function getUserAnthropicKey(): string | undefined {
     const s = requestContext.getStore();
     return s?.aiLevel === 'propia' && s.anthropicKey ? s.anthropicKey : undefined;
+}
+
+/** Nov 2026: clave de Gemini del autor (la que manda el navegador), para las herramientas en nivel gratis. */
+export function getRequestGeminiKey(): string | undefined {
+    return requestContext.getStore()?.geminiKey;
 }
 
 export function getClaudeQuality(): 'calidad' | 'economico' {

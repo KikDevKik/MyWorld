@@ -21,9 +21,59 @@ interface Propuesta { original: string; baseHash: string; propuesta: string; cam
 
 interface Props { accessToken: string | null; onOpenFile?: (fileId: string) => void }
 
+// Nov 2026: la ficha completa se lee y se edita aquí (antes solo se veía la frase del escaneo y había que ir al editor).
+function FichaBlock({ fileId, name, accessToken }: { fileId: string; name: string; accessToken: string | null }) {
+    const [text, setText] = useState<string | null>(null);
+    const [base, setBase] = useState('');
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+    const [saving, setSaving] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        setText(null); setEditing(false);
+        if (!accessToken) { setText(''); return; }
+        callFunction<any>('getDriveFileContent', { fileId, accessToken })
+            .then(r => { if (alive) { const c = String(r?.content || ''); setText(c); setBase(c); } })
+            .catch(() => { if (alive) setText(''); });
+        return () => { alive = false; };
+    }, [fileId, accessToken]);
+    const body = (text || '').replace(/^---\n[\s\S]*?\n---\n?/, '').replace(/^>\s*\*\*(Role|Traits)\*\*:.*$/gm, '').trim();
+    const save = async () => {
+        setSaving(true);
+        try {
+            const r = await callFunction<any>('saveDriveFile', { fileId, content: draft, accessToken, baseHash: textHash(base) });
+            if (r?.conflict) { toast.warning('La ficha cambió en Drive desde que la abriste. Vuelve a abrirla para no pisar esos cambios.'); return; }
+            setText(draft); setBase(draft); setEditing(false);
+            toast.success(`Ficha de ${name} guardada.`);
+        } catch (e: any) { toast.error(e?.message || 'No pude guardar la ficha.'); }
+        finally { setSaving(false); }
+    };
+    return (
+        <section className="rounded-xl border border-titanium-800 bg-titanium-950/40 p-4" aria-label={`Ficha de ${name}`}>
+            <div className="flex items-center gap-2 mb-2">
+                <h3 className="flex-1 font-serif text-[16px] text-titanium-50">La ficha</h3>
+                {text !== null && !editing && <button onClick={() => { setDraft(text || ''); setEditing(true); }} className="rounded-md border border-titanium-700 px-2.5 py-1 text-[12px] text-titanium-300 hover:bg-titanium-800">Editar a mano</button>}
+            </div>
+            {text === null ? <div className="py-3 text-titanium-600"><Loader2 size={14} className="animate-spin" aria-hidden="true" /></div>
+                : editing ? (
+                    <div className="flex flex-col gap-2">
+                        <label htmlFor="ficha-edit" className="sr-only">Texto de la ficha</label>
+                        <textarea id="ficha-edit" value={draft} onChange={e => setDraft(e.target.value)} rows={14} className="w-full rounded-md border border-titanium-700 bg-titanium-950 p-3 font-serif text-[14px] leading-relaxed text-titanium-100 outline-none focus:border-mira/70" />
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setEditing(false)} className="rounded-md px-3 py-1.5 text-[13px] text-titanium-400 hover:text-titanium-100">Cancelar</button>
+                            <button onClick={save} disabled={saving || draft === base} className="inline-flex items-center gap-1.5 rounded-md bg-coral text-on-coral px-4 py-1.5 text-[13px] font-medium disabled:opacity-40">{saving ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />} Guardar</button>
+                        </div>
+                    </div>
+                ) : body ? (
+                    <div className="prose prose-invert prose-sm max-w-none font-serif text-titanium-200"><ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown></div>
+                ) : <p className="text-[13px] text-titanium-500">La ficha está vacía o no se pudo leer.</p>}
+        </section>
+    );
+}
+
 const ROL_ORDER: Record<string, number> = { protagonista: 0, principal: 1, secundario: 2, mencionado: 3 };
 const ROL_STYLE: Record<string, string> = {
-    protagonista: 'bg-cyan-900/40 text-cyan-200', principal: 'bg-sky-900/30 text-sky-200',
+    protagonista: 'bg-mira/15 text-mira', principal: 'bg-sky-900/30 text-sky-200',
     secundario: 'bg-titanium-800 text-titanium-300', mencionado: 'bg-titanium-900 text-titanium-500',
 };
 
@@ -154,7 +204,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
             <aside className={`${narrow ? (cur ? 'hidden' : 'w-full') : 'w-80 shrink-0 border-r border-titanium-800'} flex flex-col`}>
                 <div className="p-4 border-b border-titanium-800 space-y-3">
                     <div className="flex items-center gap-2">
-                        <Users size={15} className="text-cyan-400" />
+                        <Users size={15} className="text-mira" />
                         <p className="flex-1 text-sm font-medium text-titanium-100">Tus personajes</p>
                         <button onClick={scan} disabled={scanning} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-2.5 py-1 text-[11px] text-titanium-100 disabled:opacity-50" title={`Lee tu canon y encuentra a tus personajes${costSuffix('~US$0,02')}`}>
                             {scanning ? <Loader2 size={12} className="animate-spin" /> : <ScanSearch size={12} />} {list.length ? 'Volver a escanear' : 'Escanear mi canon'}
@@ -225,6 +275,8 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                                 {!!cur.archivos.length && <p className="text-[11px] text-titanium-600">Aparece en: {cur.archivos.join(', ')}</p>}
                             </header>
 
+                            {cur.fichaFileId && <FichaBlock fileId={cur.fichaFileId} name={cur.nombre} accessToken={accessToken} />}
+
                             {/* Revisión */}
                             <div className="rounded-xl border border-titanium-800 bg-titanium-950/40 p-4">
                                 <div className="flex items-center gap-2">
@@ -251,7 +303,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                                                             <div key={i} className="rounded-md bg-titanium-900/60 p-2.5">
                                                                 <p className="font-medium text-titanium-100">{f.aspecto}</p>
                                                                 <p className="text-titanium-400">{f.porQue}</p>
-                                                                <p className="mt-1 flex gap-1.5 text-cyan-200/90"><HelpCircle size={12} className="mt-0.5 shrink-0" />{f.pregunta}</p>
+                                                                <p className="mt-1 flex gap-1.5 text-mira/90"><HelpCircle size={12} className="mt-0.5 shrink-0" />{f.pregunta}</p>
                                                             </div>
                                                         ))}</div>
                                                     </div>
@@ -263,7 +315,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                                                             <div key={i} className="rounded-md border border-red-900/40 bg-red-950/10 p-2.5 space-y-1">
                                                                 <p className="flex gap-1.5"><AlertTriangle size={12} className="mt-0.5 shrink-0 text-red-400" />{c.explicacion}</p>
                                                                 {c.citaFicha && <p className="border-l-2 border-titanium-700 pl-2 italic text-titanium-400"><span className="not-italic text-[10px] text-titanium-600">Ficha: </span>«{c.citaFicha}»</p>}
-                                                                {c.citaTexto && <p className="border-l-2 border-cyan-900 pl-2 italic text-titanium-400"><span className="not-italic text-[10px] text-cyan-600">{c.fuente || 'Manuscrito'}: </span>«{c.citaTexto}»</p>}
+                                                                {c.citaTexto && <p className="border-l-2 border-mira/40 pl-2 italic text-titanium-400"><span className="not-italic text-[10px] text-mira">{c.fuente || 'Manuscrito'}: </span>«{c.citaTexto}»</p>}
                                                             </div>
                                                         ))}</div>
                                                     </div>
@@ -277,7 +329,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                                 <div className="flex items-center gap-2">
                                     <p className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-titanium-500">Entrevista para completar la ficha</p>
                                     {!!mensajes.length && <button onClick={resetInterview} className="p-1 text-titanium-500 hover:text-titanium-200" title="Empezar de nuevo"><RotateCcw size={12} /></button>}
-                                    <button onClick={propose} disabled={!!busy || !mensajes.some(m => m.role === 'user')} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-800/70 hover:bg-cyan-700 px-2.5 py-1 text-[11px] text-white disabled:opacity-40" title="Propone la ficha con lo que respondiste; tú la apruebas antes de guardar">
+                                    <button onClick={propose} disabled={!!busy || !mensajes.some(m => m.role === 'user')} className="inline-flex items-center gap-1.5 rounded-md bg-mira/15 hover:bg-mira/25 px-2.5 py-1 text-[11px] text-white disabled:opacity-40" title="Propone la ficha con lo que respondiste; tú la apruebas antes de guardar">
                                         {busy === 'propose' ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />} {cur.fichaFileId ? 'Proponer ficha actualizada' : 'Proponer ficha'}
                                     </button>
                                 </div>
@@ -297,12 +349,12 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                                         ))}
                                         {busy === 'interview' && <div className="text-titanium-500"><Loader2 size={13} className="animate-spin" /></div>}
                                         <div ref={endRef} />
-                                        <div className="flex items-end gap-2 rounded-xl border border-titanium-700 bg-titanium-900/80 px-3 py-2 focus-within:border-cyan-700/60">
+                                        <div className="flex items-end gap-2 rounded-xl border border-titanium-700 bg-titanium-900/80 px-3 py-2 focus-within:border-mira/60">
                                             <textarea value={input} onChange={e => setInput(e.target.value)}
                                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (input.trim() && !busy) { const t = input.trim(); setInput(''); run('interview', t); } } }}
                                                 rows={Math.min(6, Math.max(1, input.split('\n').length))} placeholder="Tu respuesta…"
                                                 className="flex-1 resize-none bg-transparent text-[13px] text-titanium-100 placeholder:text-titanium-600 outline-none py-1" />
-                                            <button onClick={() => { const t = input.trim(); if (!t) return; setInput(''); run('interview', t); }} disabled={!input.trim() || !!busy} className="p-2 rounded-lg bg-cyan-800/80 text-white hover:bg-cyan-700 disabled:opacity-30"><Send size={14} /></button>
+                                            <button onClick={() => { const t = input.trim(); if (!t) return; setInput(''); run('interview', t); }} disabled={!input.trim() || !!busy} className="p-2 rounded-lg bg-mira/15 text-white hover:bg-mira/25 disabled:opacity-30"><Send size={14} /></button>
                                         </div>
                                     </div>
                                 )}

@@ -344,17 +344,17 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                 {(narratorControls?.isPlaying || narratorControls?.isLoading) && (
                     <>
                         <div className="h-3 w-px bg-titanium-800 mx-1" />
-                        <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-cyan-950/30 border border-cyan-900/30">
+                        <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-mira/15 border border-mira/30">
                             {narratorControls.isLoading ? (
-                                <Loader2 size={12} className="animate-spin text-cyan-400" />
+                                <Loader2 size={12} className="animate-spin text-mira" />
                             ) : (
                                 <span className="flex h-2 w-2 relative">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mira/20 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-mira/25"></span>
                                 </span>
                             )}
 
-                            <span className="text-cyan-200 font-bold tracking-wide">
+                            <span className="text-mira font-bold tracking-wide">
                                 {narratorControls.isLoading ? t.analyzing : t.narrating}
                             </span>
 
@@ -362,7 +362,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                                 <div className="flex items-center gap-1 ml-1">
                                     <button
                                         onClick={narratorControls.pause}
-                                        className="hover:text-cyan-400 hover:bg-cyan-900/50 rounded p-0.5 transition-colors"
+                                        className="hover:text-mira hover:bg-mira/15 rounded p-0.5 transition-colors"
                                         title={t.pause}
                                         aria-label={t.pause}
                                     >

@@ -106,14 +106,14 @@ export const SessionList: React.FC<SessionListProps> = ({
                                     onClick={() => onSessionSelect(session.id)}
                                     className={`
                                         group relative w-full text-left p-3 rounded-lg border transition-all cursor-pointer
-                                        focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none
+                                        focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none
                                         ${activeSessionId === session.id
-                                            ? 'bg-cyan-950/20 border-cyan-900/50 hover:bg-cyan-950/30'
+                                            ? 'bg-mira/15 border-mira/50 hover:bg-mira/15'
                                             : 'bg-titanium-950/30 border-titanium-800 hover:border-titanium-600 hover:bg-titanium-900'}
                                     `}
                                 >
                                     <div className="flex justify-between items-start mb-1">
-                                        <h4 className={`font-bold text-sm truncate pr-8 ${activeSessionId === session.id ? 'text-cyan-300' : 'text-titanium-200'}`}>
+                                        <h4 className={`font-bold text-sm truncate pr-8 ${activeSessionId === session.id ? 'text-mira' : 'text-titanium-200'}`}>
                                             {session.name}
                                         </h4>
                                         <span className="text-[10px] text-titanium-500 font-mono whitespace-nowrap">

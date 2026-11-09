@@ -129,7 +129,13 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     let zoneCStyle: React.CSSProperties = {};
 
     const zoneCOverlay = narrow && isZoneCVisible && !isHeavyTool;
-    if (zoneCOverlay) {
+    if (narrow) {
+        // Nov 2026: en el celular las herramientas van en una barra inferior. Con un panel lateral abierto,
+        // el panel ocupa la pantalla y la barra queda abajo (flex-col-reverse: el riel es el primer hijo).
+        zoneCClasses = zoneCOverlay
+            ? 'absolute inset-0 z-50 flex flex-col-reverse bg-titanium-950'
+            : 'relative w-full shrink-0 flex flex-col bg-titanium-950 border-t border-titanium-800';
+    } else if (zoneCOverlay) {
         // Nov 2026: en pantallas angostas el panel lateral se pone encima del texto (con el riel a su izquierda).
         zoneCClasses += " absolute right-0 top-0 bottom-0 z-50 w-full max-w-[36rem] bg-titanium-950 border-l border-titanium-800 shadow-[-20px_0_60px_rgba(0,0,0,0.45)]";
     } else if (isHeavyTool) {
@@ -173,7 +179,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
 
     return (
         <div
-            className="h-dvh w-screen overflow-hidden bg-titanium-900 text-titanium-100 flex flex-row relative"
+            className={`h-dvh w-screen overflow-hidden bg-titanium-900 text-titanium-100 flex ${narrow ? 'flex-col' : 'flex-row'} relative`}
             data-active-view={activeView}
             data-show-sidebar={showSidebar.toString()}
         >
@@ -222,13 +228,13 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             {isResizable && (
                 <div
                     onMouseDown={handleMouseDown}
-                    className="w-1 hover:w-2 bg-titanium-900 hover:bg-cyan-500 cursor-col-resize z-50 flex-shrink-0 transition-colors delay-150"
+                    className="w-1 hover:w-2 bg-titanium-900 hover:bg-mira/25 cursor-col-resize z-50 flex-shrink-0 transition-colors delay-150"
                     title="Arrastrar para redimensionar"
                 />
             )}
 
             {/* Con el panel encima, este hueco guarda el sitio del riel para que el texto no salte. */}
-            {zoneCOverlay && <div className="w-16 flex-shrink-0" aria-hidden="true" />}
+            {zoneCOverlay && !narrow && <div className="w-16 flex-shrink-0" aria-hidden="true" />}
 
             {/* ZONA C: INTELIGENCIA (DOCK + SIDE PANELS) */}
             <aside className={zoneCClasses} style={zoneCStyle}>

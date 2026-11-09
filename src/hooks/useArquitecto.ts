@@ -78,6 +78,9 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         pendingCount: number;
     } | null>(null);
 
+    // Nov 2026: mientras se busca la última conversación no se dice «Todavía no hay conversaciones».
+    const [existingSessionLoaded, setExistingSessionLoaded] = useState(false);
+
     // Ghost mode simulation
     const isGhostMode = import.meta.env.VITE_JULES_MODE === 'true';
 
@@ -162,7 +165,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                     pendingCount: useAgenda ? agenda.filter((p: any) => p.e !== 'hecho').length : items.filter((i: any) => !i.resolved).length,
                 });
             })
-            .catch(() => { if (!cancelled) setExistingSession(null); });
+            .catch(() => { if (!cancelled) setExistingSession(null); })
+            .finally(() => { if (!cancelled) setExistingSessionLoaded(true); });
         return () => { cancelled = true; unsub(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -947,6 +951,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         resolveItem,
         reinitialize,
         existingSession,
+        existingSessionLoaded,
         resumeSession,
         discardSession,
         archiveSession,

@@ -10,7 +10,8 @@ import * as logger from "firebase-functions/logger";
 import { google } from "./utils/gapi";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { claudeEnabledForCurrentUser, callClaude, CLAUDE_HAIKU } from "./utils/claude_router";
+import { CLAUDE_HAIKU } from "./utils/claude_router";
+import { aiText } from "./utils/ai_text";
 import {
     loadAllMemory, applyMemoryOps, undoMemoryOps, memoryCol, memoryFileToMarkdown,
     MemoryOp, AppliedOp, MemoryFile, invalidateMemoryCache, newLineId,
@@ -101,11 +102,12 @@ export const updateMemory = onCall(OPTS, async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
     const uid = request.auth.uid;
     const { userMessage, assistantMessage, tool, accessToken, activeFileName } = request.data || {};
-    if (!userMessage || !claudeEnabledForCurrentUser()) return { saved: [] };
+    // Nov 2026: también en el nivel gratis (antes la memoria solo se guardaba con Claude).
+    if (!userMessage) return { saved: [] };
 
     const files = await loadAllMemory(uid);
     const prompt = `MEMORIA ACTUAL:\n${memoryIndex(files)}\n\nHERRAMIENTA: ${tool || "director"}\nARCHIVO ABIERTO: ${activeFileName || "(ninguno)"}\n\nMENSAJE DEL AUTOR:\n${String(userMessage).slice(0, 4000)}\n\nRESPUESTA DE LA IA:\n${String(assistantMessage || "").slice(0, 3000)}\n\nResponde SOLO con el JSON.`;
-    const r = await callClaude({
+    const r = await aiText({
         model: CLAUDE_HAIKU,
         system: [{ text: EXTRACTION_RULES, cache: true }],
         content: [{ type: "text", text: prompt }],

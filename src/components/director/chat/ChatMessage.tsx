@@ -66,8 +66,8 @@ export const ChatMessage = React.memo(({
     // 3. SYSTEM ALERT (Client Side Context)
     if (message.type === 'system_alert') {
         return (
-            <div className="mx-auto w-[90%] bg-cyan-950/20 backdrop-blur-sm border border-cyan-500/30 rounded-lg p-3 animate-in zoom-in-95 duration-200">
-                <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase mb-1">
+            <div className="mx-auto w-[90%] bg-mira/15 backdrop-blur-sm border border-mira/30 rounded-lg p-3 animate-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-2 text-mira font-bold text-xs uppercase mb-1">
                     <AlertCircle size={14} />
                     <span>Sistema</span>
                 </div>
@@ -104,7 +104,7 @@ export const ChatMessage = React.memo(({
                                     <button
                                         onClick={() => onRescue(item, `${message.id}-${subIdx}`, message.driftData.category)}
                                         disabled={rescuingIds.has(`${message.id}-${subIdx}`)}
-                                        className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                        className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none"
                                         aria-label={`Rescatar ${item.fileName || 'eco'}`}
                                     >
                                         {rescuingIds.has(`${message.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Rescatar"}
@@ -112,7 +112,7 @@ export const ChatMessage = React.memo(({
                                     <button
                                         onClick={() => onPurge(item, `${message.id}-${subIdx}`)}
                                         disabled={purgingIds.has(`${message.id}-${subIdx}`)}
-                                        className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                        className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none"
                                         aria-label={`Purgar ${item.fileName || 'eco'}`}
                                     >
                                         {purgingIds.has(`${message.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Purgar"}
@@ -153,7 +153,7 @@ export const ChatMessage = React.memo(({
                     <button
                         onClick={() => onRescue(message.driftData, message.id, message.driftCategory || 'General')}
                         disabled={isRescuing}
-                        className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                        className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none"
                         aria-label={`Rescatar eco: ${message.driftCategory || 'General'}`}
                     >
                         {isRescuing ? <Loader2 size={10} className="animate-spin" /> : "Rescatar"}
@@ -161,7 +161,7 @@ export const ChatMessage = React.memo(({
                     <button
                         onClick={() => onPurge(message.driftData, message.id)}
                         disabled={isPurging}
-                        className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                        className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none"
                         aria-label={`Purgar eco: ${message.driftCategory || 'General'}`}
                     >
                         {isPurging ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />}
@@ -195,8 +195,8 @@ export const ChatMessage = React.memo(({
     const codeComponents = {
         code({node, inline, className, children, ...props}: any) {
             return inline
-                ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
-                : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>;
+                ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-mira" {...props}>{children}</code>
+                : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-mira" {...props}>{children}</code>;
         }
     };
 

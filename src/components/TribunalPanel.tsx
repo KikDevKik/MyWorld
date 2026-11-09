@@ -273,7 +273,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                         ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }
                         : {}}>
                     {renderJudgeCard('architect', result.architect, Scale, t.architect, t.architectRole, JUDGE_COLORS.architect, 'hover:border-amber-500/30')}
-                    {renderJudgeCard('bard', result.bard, Feather, t.bard, t.bardRole, JUDGE_COLORS.bard, 'hover:border-cyan-500/30')}
+                    {renderJudgeCard('bard', result.bard, Feather, t.bard, t.bardRole, JUDGE_COLORS.bard, 'hover:border-mira/30')}
                     {renderJudgeCard('hater', result.hater, Skull, t.hater, t.haterRole, JUDGE_COLORS.hater, 'hover:border-red-500/30')}
                 </div>
             )}

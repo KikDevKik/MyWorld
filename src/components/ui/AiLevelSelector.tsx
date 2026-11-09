@@ -34,11 +34,11 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
         const active = level === id;
         return (
             <button type="button" onClick={() => choose(id)} disabled={disabled}
-                className={`relative text-left rounded-xl border p-3.5 transition-colors ${active ? 'border-cyan-500/60 bg-cyan-950/20' : 'border-titanium-800 bg-titanium-950/40 hover:border-titanium-600'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                className={`relative text-left rounded-xl border p-3.5 transition-colors ${active ? 'border-mira/60 bg-mira/15' : 'border-titanium-800 bg-titanium-950/40 hover:border-titanium-600'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <div className="flex items-center gap-2">
-                    <span className={active ? 'text-cyan-300' : 'text-titanium-400'}>{icon}</span>
+                    <span className={active ? 'text-mira' : 'text-titanium-400'}>{icon}</span>
                     <span className="text-sm font-medium text-titanium-100">{title}</span>
-                    {active && <Check size={14} className="ml-auto text-cyan-300" />}
+                    {active && <Check size={14} className="ml-auto text-mira" />}
                     {disabled && <Lock size={12} className="ml-auto text-titanium-500" />}
                 </div>
                 <p className="mt-0.5 text-[11px] font-medium text-titanium-400">{price}</p>
@@ -93,7 +93,7 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
 
             {level === 'propia' && (
                 <label className="mt-3 flex items-center gap-2 text-[12px] text-titanium-300 cursor-pointer">
-                    <input type="checkbox" checked={geminiPaid} onChange={e => { setGeminiPaidStored(e.target.checked); setGeminiPaid(e.target.checked); }} className="accent-cyan-500" />
+                    <input type="checkbox" checked={geminiPaid} onChange={e => { setGeminiPaidStored(e.target.checked); setGeminiPaid(e.target.checked); }} className="accent-[var(--color-mira)]" />
                     Mi clave de Gemini tiene facturación activa (usar modelos Gemini Pro)
                 </label>
             )}

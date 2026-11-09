@@ -9,7 +9,8 @@ import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
+import { aiText } from "./utils/ai_text";
 import { getMemoryContext, slugify } from "./utils/memory_store";
 import { planContext } from "./plan_context";
 import { canonFiles, fileText, runPersonajesScan, Personaje } from "./personajes";
@@ -54,7 +55,7 @@ function parseJson(text: string): any {
 }
 
 async function ask(model: string, system: string, user: string, label: string, maxTokens: number, effort: "low" | "medium" = "low") {
-    const r = await callClaude({ model, system: [{ text: system + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }], content: [{ type: "text", text: user }], maxTokens, effort, label } as any);
+    const r = await aiText({ model, system: [{ text: system + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }], content: [{ type: "text", text: user }], maxTokens, effort, label } as any);
     if (!r.ok || !r.text) {
         if (r.noCredit || r.error === "MONTHLY_CAP") throw new HttpsError("resource-exhausted", "Se acabó el saldo de Claude de este mes.");
         throw new HttpsError("internal", "No pude completar esto. Intenta de nuevo.");
@@ -74,7 +75,6 @@ export const mapaMundo = onCall(
             const d: any = (await ref.get()).data() || {};
             return { nodes: d.nodes || [], links: d.links || [], sugerencias: d.sugerencias || [], scannedAt: d.scannedAt || null };
         }
-        if (!claudeEnabledForCurrentUser()) throw new HttpsError("failed-precondition", "El Mapa usa Claude y todavía no está activo para tu cuenta.");
 
         if (mode === "scan") {
             // Personajes primero (si nunca se escanearon o si se pide refrescar todo)

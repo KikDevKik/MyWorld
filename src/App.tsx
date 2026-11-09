@@ -1142,7 +1142,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     if (isAppLoading) {
         return (
             <div className="h-dvh w-screen bg-titanium-950 flex flex-col items-center justify-center text-titanium-200 gap-4">
-                <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
+                <Loader2 className="w-10 h-10 animate-spin text-mira" />
                 <p className="text-sm font-mono tracking-widest opacity-70">{tApp.loadingSystems}</p>
             </div>
         );
@@ -1499,7 +1499,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                                 </p>
                                 <button
                                     onClick={handleDriveLink}
-                                    className="w-full py-2.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[13px] font-medium rounded-lg hover:bg-cyan-500/25 transition-all"
+                                    className="w-full py-2.5 bg-mira/15 border border-mira/40 text-mira text-[13px] font-medium rounded-lg hover:bg-mira/25 transition-all"
                                 >
                                     Conectar Google Drive
                                 </button>

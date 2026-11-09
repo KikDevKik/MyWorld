@@ -140,7 +140,7 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
                             type="text"
                             value={fileName}
                             onChange={(e) => setFileName(e.target.value)}
-                            className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-cyan-300 font-mono focus:border-cyan-500 focus:outline-none"
+                            className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-mira font-mono focus:border-mira/40 focus:outline-none"
                             placeholder="MyAwesomeConcept.md"
                             autoFocus
                         />
@@ -155,7 +155,7 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
                             id="crystallize-folder"
                             value={selectedFolderId}
                             onChange={(e) => setSelectedFolderId(e.target.value)}
-                            className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-white font-mono focus:border-cyan-500 focus:outline-none appearance-none"
+                            className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-white font-mono focus:border-mira/40 focus:outline-none appearance-none"
                         >
                             <option value={config?.folderId || ''} className="bg-slate-900 text-gray-400">
                                 📂 Root Canon ({config?.folderId ? 'Found' : 'Missing'})
@@ -199,7 +199,7 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
                         className={`
                             px-6 py-2 rounded text-xs font-bold text-white flex items-center gap-2
                             transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)]
-                            ${isProcessing ? 'bg-slate-600 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:scale-105'}
+                            ${isProcessing ? 'bg-slate-600 cursor-not-allowed' : 'bg-gradient-to-r from-mira/20 to-blue-600 hover:scale-105'}
                         `}
                     >
                         {isProcessing ? (

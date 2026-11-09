@@ -574,7 +574,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         id="tab-info"
                         onClick={() => setActiveTab('info')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'info'
-                            ? 'border-cyan-400 text-cyan-400'
+                            ? 'border-mira/30 text-mira'
                             : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
                     >
@@ -973,7 +973,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     <div className="space-y-2 p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-1.5">
-                                                <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                                                <span className="w-2 h-2 rounded-full bg-mira/20"></span>
                                                 <h4 className="text-xs font-semibold text-zinc-200">Google AI Studio (Gemini)</h4>
                                             </div>
                                             <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-medium">Gratis o de pago</span>
@@ -1015,7 +1015,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                                             <button
                                                 onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
-                                                className="text-[11px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors font-medium"
+                                                className="text-[11px] text-mira hover:text-mira underline underline-offset-2 transition-colors font-medium"
                                             >
                                                 Obtener Key Gratis de Gemini →
                                             </button>
@@ -1207,7 +1207,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 </div>
                                 <div className="space-y-1">
                                     <h3 className="text-3xl font-display text-white tracking-tight">
-                                        MyWorld <span className="text-cyan-400 font-light"></span>
+                                        MyWorld <span className="text-mira font-light"></span>
                                     </h3>
                                     <p className="text-xs text-titanium-400">
                                         {currentLanguage === 'en' ? 'Open beta' : 'Beta abierta'}
@@ -1229,7 +1229,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         </div>
                                         <div>
                                             <p className="text-xs text-titanium-400">{currentLanguage === 'en' ? 'A product by' : 'Un producto de'}</p>
-                                            <a href="https://northforgestudios.tech" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-white hover:text-cyan-400 transition-colors flex items-center gap-1">
+                                            <a href="https://northforgestudios.tech" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-white hover:text-mira transition-colors flex items-center gap-1">
                                                 NorthForge Studios <ExternalLink size={12} />
                                             </a>
                                         </div>
@@ -1266,10 +1266,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             {/* Quick Links Footer */}
                             <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
                                 <div className="flex gap-4">
-                                    <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5">
+                                    <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-mira transition-colors flex items-center gap-1.5">
                                         <ShieldCheck size={14} /> {currentLanguage === 'en' ? 'Privacy' : 'Privacidad'}
                                     </a>
-                                    <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5">
+                                    <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-mira transition-colors flex items-center gap-1.5">
                                         <Info size={14} /> {currentLanguage === 'en' ? 'Terms' : 'Términos'}
                                     </a>
                                 </div>

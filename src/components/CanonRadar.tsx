@@ -195,22 +195,22 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {/* 🟢 RESONANCE SECTION (MOVED FROM DIRECTOR) */}
                 {activeResonance.length > 0 && (
                     <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase mb-2">
+                        <div className="flex items-center gap-2 text-mira text-xs font-bold uppercase mb-2">
                             <Sparkles size={14} />
                             <span>{t.resonance} ({activeResonance.length})</span>
                         </div>
 
                         {activeResonance.map((match, idx) => (
-                             <div key={`res-${idx}`} className="bg-cyan-950/20 border border-cyan-500/30 rounded-lg p-3 hover:bg-cyan-900/20 transition-all">
+                             <div key={`res-${idx}`} className="bg-mira/15 border border-mira/30 rounded-lg p-3 hover:bg-mira/15 transition-all">
                                 <div className="flex justify-between items-start mb-1">
-                                    <span className="text-cyan-200 font-bold text-xs tracking-wide">
+                                    <span className="text-mira font-bold text-xs tracking-wide">
                                         {match.type.replace('_SEED', '')}
                                     </span>
-                                    <span className="text-[10px] text-cyan-500 font-mono">
+                                    <span className="text-[10px] text-mira font-mono">
                                         {(match.similarity_score * 100).toFixed(0)}%
                                     </span>
                                 </div>
-                                <p className="text-titanium-300 text-xs italic font-serif leading-relaxed border-l-2 border-cyan-500/50 pl-2 mb-2">
+                                <p className="text-titanium-300 text-xs italic font-serif leading-relaxed border-l-2 border-mira/50 pl-2 mb-2">
                                     "{match.crumb_text}"
                                 </p>
                                 <div className="flex items-center gap-1 text-[10px] text-titanium-500">
@@ -457,7 +457,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 <button
                     onClick={onForceAudit}
                     disabled={status === 'scanning'}
-                    className={`flex-1 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${tourHighlight === 'force' ? 'ring-2 ring-cyan-400/60 ring-offset-1 ring-offset-[#050a0c] shadow-[0_0_12px_rgba(6,182,212,0.3)]' : ''}`}
+                    className={`flex-1 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${tourHighlight === 'force' ? 'ring-2 ring-mira/60 ring-offset-1 ring-offset-[#050a0c] shadow-[0_0_12px_rgba(6,182,212,0.3)]' : ''}`}
                     title={t.forceAudit}
                     aria-label={t.forceAudit}
                 >

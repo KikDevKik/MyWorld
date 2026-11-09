@@ -463,7 +463,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
     );
 
     const GoBtn = ({ quote }: { quote?: string }) => (
-        <button onClick={() => goTo(quote)} disabled={!quote} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-cyan-300 hover:bg-cyan-900/30 disabled:opacity-30" title="Ir al pasaje en el editor">
+        <button onClick={() => goTo(quote)} disabled={!quote} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-mira hover:bg-mira/15 disabled:opacity-30" title="Ir al pasaje en el editor">
             <LocateFixed size={11} /> Ir
         </button>
     );
@@ -604,7 +604,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                                             <span className="text-titanium-600">→</span>
                                             <span className="text-emerald-300">{s.correccion}</span>
                                             <span className="ml-auto flex gap-1">
-                                                <button onClick={() => goToWord(s)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-cyan-300 hover:bg-cyan-900/30" title="Ir a la palabra en el editor"><LocateFixed size={11} /> Ir</button>
+                                                <button onClick={() => goToWord(s)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-mira hover:bg-mira/15" title="Ir a la palabra en el editor"><LocateFixed size={11} /> Ir</button>
                                                 <button onClick={() => fix(s, `o${i}`)} disabled={!!done[`o${i}`]} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-900/30 disabled:opacity-30">
                                                     <Check size={11} /> Corregir
                                                 </button>

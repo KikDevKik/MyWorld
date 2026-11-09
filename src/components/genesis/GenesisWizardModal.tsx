@@ -60,7 +60,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         const parts = text.split(/(\*\*[^*]+\*\*)/g);
         return parts.map((part, index) => {
             if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={index} className="font-bold text-cyan-200">{part.slice(2, -2)}</strong>;
+                return <strong key={index} className="font-bold text-mira">{part.slice(2, -2)}</strong>;
             }
             return part;
         });
@@ -253,8 +253,8 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-titanium-800 bg-titanium-900/50">
                     <div>
-                        <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 flex items-center gap-2">
-                            <Sparkles size={20} className="text-cyan-400" />
+                        <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-mira/20 flex items-center gap-2">
+                            <Sparkles size={20} className="text-mira" />
                             {t.title}
                         </h2>
                         <p className="text-xs text-titanium-400 mt-1">{t.subtitle}</p>
@@ -271,9 +271,9 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                             <div className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed ${
                                 msg.role === 'user'
                                     ? 'bg-titanium-800 text-titanium-100 border border-titanium-700'
-                                    : 'bg-gradient-to-br from-cyan-950/30 to-purple-950/20 text-cyan-100 border border-cyan-900/30'
+                                    : 'bg-gradient-to-br from-mira/30 to-purple-950/20 text-mira border border-mira/30'
                             }`}>
-                                {msg.role === 'model' && <Wand2 size={14} className="mb-2 text-cyan-500 opacity-70" />}
+                                {msg.role === 'model' && <Wand2 size={14} className="mb-2 text-mira opacity-70" />}
                                 {formatMessage(msg.message)}
                             </div>
                         </div>
@@ -281,7 +281,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                     {isLoading && (
                         <div className="flex justify-start">
                              <div className="bg-titanium-900/50 rounded-2xl px-4 py-3 flex items-center gap-2 border border-titanium-800">
-                                <Loader2 size={14} className="animate-spin text-cyan-500" />
+                                <Loader2 size={14} className="animate-spin text-mira" />
                                 <span className="text-xs text-titanium-500">{t.thinking}</span>
                              </div>
                         </div>
@@ -303,8 +303,8 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                                     text-white font-bold rounded-full shadow-lg transition-all
                                     active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
                                     ${isReadyToMaterialize
-                                        ? 'bg-gradient-to-r from-purple-500 to-cyan-400 hover:from-purple-400 hover:to-cyan-300 shadow-cyan-500/50 animate-pulse'
-                                        : 'bg-gradient-to-r from-titanium-700 to-titanium-600 hover:from-purple-600 hover:to-cyan-600'
+                                        ? 'bg-gradient-to-r from-purple-500 to-mira/20 hover:from-purple-400 hover:to-mira/20 shadow-mira/50 animate-pulse'
+                                        : 'bg-gradient-to-r from-titanium-700 to-titanium-600 hover:from-purple-600 hover:to-mira/20'
                                     }
                                 `}
                             >
@@ -320,7 +320,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                                     </>
                                 )}
                                 {isReadyToMaterialize && (
-                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-cyan-400 rounded-full animate-ping" />
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-mira/20 rounded-full animate-ping" />
                                 )}
                             </button>
                         </div>
@@ -333,7 +333,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={handleKeyDown}
                             placeholder={t.placeholder}
-                            className="w-full pl-5 pr-12 py-4 bg-titanium-950 border border-titanium-700 rounded-xl text-titanium-200 placeholder-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all shadow-inner resize-none min-h-[56px] max-h-[200px]"
+                            className="w-full pl-5 pr-12 py-4 bg-titanium-950 border border-titanium-700 rounded-xl text-titanium-200 placeholder-titanium-600 focus:outline-none focus:ring-2 focus:ring-mira/30 focus:border-mira/50 transition-all shadow-inner resize-none min-h-[56px] max-h-[200px]"
                             autoFocus
                             disabled={isMaterializing || isLoading}
                             rows={1}
@@ -341,7 +341,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                         <button
                             onClick={() => handleSendMessage()}
                             disabled={!inputValue.trim() || isMaterializing || isLoading}
-                            className="absolute right-3 bottom-3 p-2 bg-titanium-800 hover:bg-cyan-600 text-titanium-400 hover:text-white rounded-lg transition-all disabled:opacity-0"
+                            className="absolute right-3 bottom-3 p-2 bg-titanium-800 hover:bg-mira/25 text-titanium-400 hover:text-white rounded-lg transition-all disabled:opacity-0"
                         >
                             <Send size={18} />
                         </button>

@@ -153,7 +153,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
     return (
         <div className="h-full w-full flex flex-col overflow-hidden bg-titanium-950">
             <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-titanium-800 px-4 py-2">
-                <Network size={15} className="text-cyan-400" />
+                <Network size={15} className="text-mira" />
                 <span className="text-sm text-titanium-100">Mapa de tu mundo</span>
                 {scannedAt && <span className="text-xs text-titanium-400">· {nodes.length} {nodes.length === 1 ? 'elemento' : 'elementos'} · {links.length} {links.length === 1 ? 'conexión' : 'conexiones'} · {ghosts} sin archivo</span>}
                 <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -289,11 +289,11 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                                 ) : (
                                     <div className="rounded-md border border-dashed border-titanium-700 p-2 text-[11px] text-titanium-400">
                                         <p className="flex items-center gap-1.5"><Ghost size={12} /> Aparece en tu historia pero no tiene archivo propio.</p>
-                                        {['personaje', 'criatura', 'grupo'].includes(cur.tipo) && <button onClick={onGoToPersonajes} className="mt-1.5 inline-flex items-center gap-1 text-cyan-300 hover:underline"><Users size={11} /> Crear su ficha en Personajes</button>}
+                                        {['personaje', 'criatura', 'grupo'].includes(cur.tipo) && <button onClick={onGoToPersonajes} className="mt-1.5 inline-flex items-center gap-1 text-mira hover:underline"><Users size={11} /> Crear su ficha en Personajes</button>}
                                     </div>
                                 )}
                                 <button onClick={() => onAskArquitecto?.(`Quiero trabajar las conexiones de «${cur.nombre}» en mi mundo. Hoy se relaciona con: ${curLinks.map(l => `${name(idOf(l.source)) === cur.nombre ? name(idOf(l.target)) : name(idOf(l.source))} (${l.tipo})`).join(', ') || 'casi nada'}. ¿Qué me falta decidir?`)}
-                                    className="inline-flex items-center gap-1.5 rounded-md bg-cyan-900/50 hover:bg-cyan-800/60 px-2.5 py-1 text-[11px] text-cyan-100"><Landmark size={12} /> Hablarlo con el Arquitecto</button>
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-mira/15 hover:bg-mira/15 px-2.5 py-1 text-[11px] text-mira"><Landmark size={12} /> Hablarlo con el Arquitecto</button>
                                 <div>
                                     <p className="mb-1 text-[10px] uppercase tracking-wider text-titanium-500">Conexiones ({curLinks.length})</p>
                                     {!curLinks.length ? <p className="text-titanium-600">Ninguna en tu texto todavía.</p> : (
@@ -326,7 +326,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                                 <p className="text-titanium-400"><b className="text-titanium-300">Consecuencia:</b> {selSug.consecuencia}</p>
                                 <p className="text-amber-200/90"><b>Para decidir:</b> {selSug.pregunta}</p>
                                 <p className="text-[11px] text-titanium-600">Es una hipótesis, no está en tu canon.</p>
-                                <button onClick={() => onAskArquitecto?.(`El Mapa me sugirió conectar «${selSug.de}» con «${selSug.a}»: ${selSug.idea} ${selSug.pregunta}`)} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-900/50 hover:bg-cyan-800/60 px-2.5 py-1 text-[11px] text-cyan-100"><Landmark size={12} /> Llevarla al Arquitecto</button>
+                                <button onClick={() => onAskArquitecto?.(`El Mapa me sugirió conectar «${selSug.de}» con «${selSug.a}»: ${selSug.idea} ${selSug.pregunta}`)} className="inline-flex items-center gap-1.5 rounded-md bg-mira/15 hover:bg-mira/15 px-2.5 py-1 text-[11px] text-mira"><Landmark size={12} /> Llevarla al Arquitecto</button>
                                 <button onClick={() => { focus(selSug.source); }} className="ml-2 text-[11px] text-titanium-400 hover:underline">Ver en el mapa</button>
                             </div>
                         ) : (

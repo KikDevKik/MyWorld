@@ -8,7 +8,7 @@ import { EntityType } from '../../types/graph';
 const getTypeIcon = (type: EntityType) => {
     switch (type) {
         case 'character': return <User size={18} className="text-yellow-400" />;
-        case 'location': return <MapPin size={18} className="text-cyan-400" />;
+        case 'location': return <MapPin size={18} className="text-mira" />;
         case 'object': return <Box size={18} className="text-purple-400" />;
         case 'event': return <Zap size={18} className="text-orange-400" />;
         case 'faction': return <Swords size={18} className="text-red-400" />;
@@ -49,7 +49,7 @@ export const NodeDetailsSidebar: React.FC<NodeDetailsSidebarProps> = ({ node, is
                                         {node.type}
                                     </span>
                                     {node.subtype && (
-                                        <span className="text-[10px] uppercase font-mono tracking-widest text-cyan-500 font-bold">
+                                        <span className="text-[10px] uppercase font-mono tracking-widest text-mira font-bold">
                                             {node.subtype}
                                         </span>
                                     )}
@@ -88,7 +88,7 @@ export const NodeDetailsSidebar: React.FC<NodeDetailsSidebarProps> = ({ node, is
                                 <div className="flex flex-wrap gap-2">
                                     {node.foundInFiles.slice(0, 5).map((f, i) => (
                                         <div key={i} className="px-2.5 py-1.5 bg-slate-900 rounded border border-slate-800 flex items-center gap-2 max-w-full">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-900 border border-cyan-500/50" />
+                                            <span className="w-1.5 h-1.5 rounded-full bg-mira/12 border border-mira/50" />
                                             <span className="text-[10px] text-slate-400 truncate max-w-[180px] font-mono">
                                                 {f.fileName}
                                             </span>
@@ -111,13 +111,13 @@ export const NodeDetailsSidebar: React.FC<NodeDetailsSidebarProps> = ({ node, is
                             </h3>
                             <div className="space-y-2">
                                 {node.relations?.map((rel, idx) => (
-                                    <div key={idx} className="group flex items-center justify-between p-3 bg-slate-900/30 rounded border border-slate-800/50 hover:border-cyan-500/30 hover:bg-slate-900 transition-all duration-300">
+                                    <div key={idx} className="group flex items-center justify-between p-3 bg-slate-900/30 rounded border border-slate-800/50 hover:border-mira/30 hover:bg-slate-900 transition-all duration-300">
                                         <div className="flex items-center gap-3">
                                             <div className="opacity-70 group-hover:opacity-100 transition-opacity">
                                                 {getTypeIcon(rel.targetType)}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-slate-300 group-hover:text-cyan-300 transition-colors">{rel.targetName}</span>
+                                                <span className="text-xs font-bold text-slate-300 group-hover:text-mira transition-colors">{rel.targetName}</span>
                                                 <span className="text-[10px] text-slate-500 font-mono">{rel.relation}</span>
                                             </div>
                                         </div>
@@ -136,7 +136,7 @@ export const NodeDetailsSidebar: React.FC<NodeDetailsSidebarProps> = ({ node, is
                     <div className="p-6 border-t border-slate-800 bg-titanium-950 flex gap-3">
                         <button
                             onClick={onEdit}
-                            className="flex-1 flex items-center justify-center gap-2 py-3 bg-cyan-950/20 border border-cyan-500/30 rounded-lg text-cyan-400 hover:bg-cyan-900/40 hover:border-cyan-400 hover:text-cyan-200 transition-all duration-300 text-xs font-bold tracking-widest uppercase shadow-[0_0_20px_rgba(6,182,212,0.05)] hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+                            className="flex-1 flex items-center justify-center gap-2 py-3 bg-mira/15 border border-mira/30 rounded-lg text-mira hover:bg-mira/15 hover:border-mira/30 hover:text-mira transition-all duration-300 text-xs font-bold tracking-widest uppercase shadow-[0_0_20px_rgba(6,182,212,0.05)] hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
                         >
                             <Edit2 size={14} />
                             Editar Datos

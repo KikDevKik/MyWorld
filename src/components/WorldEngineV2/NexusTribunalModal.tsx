@@ -43,7 +43,7 @@ const getTypeColor = (type: AnalysisAmbiguityType) => {
     switch (type) {
         case 'CONFLICT': return 'text-orange-400 border-orange-500/50 bg-orange-950/20';
         case 'DUPLICATE': return 'text-yellow-400 border-yellow-500/50 bg-yellow-950/20';
-        case 'NEW': return 'text-cyan-400 border-cyan-500/50 bg-cyan-950/20';
+        case 'NEW': return 'text-mira border-mira/50 bg-mira/15';
         case 'ITEM_LORE': return 'text-purple-400 border-purple-500/50 bg-purple-950/20';
         default: return 'text-slate-400 border-slate-500/50 bg-slate-950/20';
     }
@@ -325,10 +325,10 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                     {/* Header */}
                     <div className="h-16 border-b border-slate-800 flex items-center justify-between px-6 gap-3 bg-gradient-to-r from-slate-900 to-transparent">
                         <div className="flex items-center gap-3">
-                            <ShieldAlert className="text-cyan-500" size={20} />
+                            <ShieldAlert className="text-mira" size={20} />
                             <div>
                                 <h2 className="text-sm font-bold text-slate-200 tracking-wider">{tNexus.nexusTribunal?.toUpperCase() || 'NEXUS TRIBUNAL'}</h2>
-                                <div className="text-[10px] text-cyan-500/80 font-mono">{tNexus.analysisProtocolActive || "ANALYSIS PROTOCOL ACTIVE"}</div>
+                                <div className="text-[10px] text-mira/80 font-mono">{tNexus.analysisProtocolActive || "ANALYSIS PROTOCOL ACTIVE"}</div>
                             </div>
                         </div>
 
@@ -360,13 +360,13 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                     {/* 🟢 SEARCH BAR */}
                     <div className="px-4 py-3 border-b border-slate-800 bg-titanium-900">
                         <div className="relative group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-500 transition-colors" size={14} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-mira transition-colors" size={14} />
                             <input
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder={tNexus.searchInNexus || "Buscar en Nexus..."}
-                            className="w-full bg-slate-900/50 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-300 placeholder:text-slate-600 outline-none focus:border-cyan-500/50 focus:bg-slate-900 transition-all"
+                            className="w-full bg-slate-900/50 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-300 placeholder:text-slate-600 outline-none focus:border-mira/50 focus:bg-slate-900 transition-all"
                             />                        </div>
                     </div>
 
@@ -374,7 +374,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                     <div className="flex border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                         <button
                             onClick={() => setFilterMode('ALL')}
-                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'ALL' ? 'border-b-2 border-cyan-500 text-cyan-100 bg-cyan-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
+                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'ALL' ? 'border-b-2 border-mira/40 text-mira bg-mira/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
                         >
                             All
                         </button>
@@ -452,7 +452,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                             className={`w-full text-left p-4 rounded-lg border transition-all duration-200 group relative overflow-hidden ${bgClass} ${borderClass} ${isStaged ? 'hover:bg-[#ddbf61]/20' : 'hover:bg-slate-900/50 hover:border-slate-800'}`}
                                         >
                                             {/* Selection Indicator */}
-                                            {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-1 ${isStaged ? 'bg-[#ddbf61]' : 'bg-cyan-500'}`} />}
+                                            {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-1 ${isStaged ? 'bg-[#ddbf61]' : 'bg-mira/25'}`} />}
 
                                             {/* Staged Pulse */}
                                             {isStaged && <div className="absolute inset-0 bg-[#ddbf61]/5 animate-pulse pointer-events-none" />}
@@ -463,7 +463,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                     onClick={(e) => toggleCheck(e, candidate.id)}
                                                     className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                                                         isChecked
-                                                            ? 'bg-cyan-500 border-cyan-500 text-black'
+                                                            ? 'bg-mira/25 border-mira/40 text-black'
                                                             : 'border-slate-600 hover:border-slate-400'
                                                     }`}
                                                 >
@@ -542,17 +542,17 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                 {isEditing ? (
                                     <div className="flex gap-4 items-center">
                                         <div className="flex-1 space-y-1">
-                                             <label className="text-[10px] text-cyan-500 font-bold tracking-wider">NOMBRE</label>
+                                             <label className="text-[10px] text-mira font-bold tracking-wider">NOMBRE</label>
                                              <input
-                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-xl font-bold text-white outline-none focus:border-cyan-500"
+                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-xl font-bold text-white outline-none focus:border-mira/40"
                                                  value={editValues.name}
                                                  onChange={e => setEditValues({...editValues, name: e.target.value})}
                                              />
                                         </div>
                                         <div className="w-40 space-y-1">
-                                             <label className="text-[10px] text-cyan-500 font-bold tracking-wider">TIPO</label>
+                                             <label className="text-[10px] text-mira font-bold tracking-wider">TIPO</label>
                                              <select
-                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-cyan-500 appearance-none"
+                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-mira/40 appearance-none"
                                                  value={editValues.type}
                                                  onChange={e => setEditValues({...editValues, type: e.target.value})}
                                              >
@@ -569,7 +569,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         <div className="w-40 space-y-1">
                                              <label className="text-[10px] text-slate-500 font-bold tracking-wider">SUBTIPO</label>
                                              <input
-                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-cyan-500"
+                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-mira/40"
                                                  value={editValues.subtype}
                                                  onChange={e => setEditValues({...editValues, subtype: e.target.value})}
                                                  placeholder="Ej. Ruinas"
@@ -586,7 +586,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         {/* EDIT BUTTON */}
                                         <button
                                             onClick={() => setIsEditing(true)}
-                                            className="ml-2 p-2 rounded-full hover:bg-slate-800 text-slate-500 hover:text-cyan-400 transition-colors"
+                                            className="ml-2 p-2 rounded-full hover:bg-slate-800 text-slate-500 hover:text-mira transition-colors"
                                             title="Editar Manualmente"
                                         >
                                             <Pencil size={16} />
@@ -596,7 +596,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
                                 {!isEditing && (
                                     <div className="flex items-center gap-4 text-xs font-mono text-slate-500">
-                                        <span className="flex items-center gap-1 text-cyan-500">
+                                        <span className="flex items-center gap-1 text-mira">
                                             <Database size={12} /> ID: {selectedCandidate.id}
                                         </span>
                                         <span>•</span>
@@ -621,9 +621,9 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                             <div className="flex-1 p-8 overflow-y-auto">
                                 {isEditing ? (
                                     <div className="flex flex-col h-full space-y-2">
-                                         <label className="text-[10px] text-cyan-500 font-bold tracking-wider">DESCRIPCIÓN / REASONING (EDITABLE)</label>
+                                         <label className="text-[10px] text-mira font-bold tracking-wider">DESCRIPCIÓN / REASONING (EDITABLE)</label>
                                          <textarea
-                                             className="flex-1 w-full bg-slate-900/50 border border-slate-700 rounded-xl p-6 text-sm text-slate-300 outline-none focus:border-cyan-500 resize-none leading-relaxed font-mono custom-scrollbar"
+                                             className="flex-1 w-full bg-slate-900/50 border border-slate-700 rounded-xl p-6 text-sm text-slate-300 outline-none focus:border-mira/40 resize-none leading-relaxed font-mono custom-scrollbar"
                                              value={editValues.description}
                                              onChange={e => setEditValues({...editValues, description: e.target.value})}
                                              placeholder="Escribe la descripción final para el nodo..."
@@ -645,7 +645,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                 <div className="space-y-3">
                                                     {selectedCandidate.foundInFiles?.map((evidence, idx) => (
                                                         <div key={idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-400 text-sm leading-relaxed relative">
-                                                            <div className="flex items-center gap-2 mb-2 text-xs font-mono text-cyan-700">
+                                                            <div className="flex items-center gap-2 mb-2 text-xs font-mono text-mira">
                                                                 <Database size={10} />
                                                                 <span>{evidence.fileName}</span>
                                                             </div>
@@ -773,7 +773,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
                                             const baseColor = isMerge
                                                 ? (missingTarget ? 'bg-slate-700 hover:bg-slate-600 border border-slate-500' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20')
-                                                : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20';
+                                                : 'bg-mira/25 hover:bg-mira/25 shadow-mira/20';
 
                                             let label = isProcessing ? 'PROCESSING...' : (isMerge ? 'MERGE' : 'APPROVE');
                                             if (missingTarget) label = 'SELECT TARGET...';
@@ -887,12 +887,12 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.9, opacity: 0 }}
-                                className="w-[500px] h-[600px] bg-titanium-900 border border-cyan-700/50 rounded-xl flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.1)]"
+                                className="w-[500px] h-[600px] bg-titanium-900 border border-mira/50 rounded-xl flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.1)]"
                             >
                                 {/* Header */}
                                 <div className="p-4 border-b border-slate-800 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <Search className="text-cyan-500" size={20} />
+                                        <Search className="text-mira" size={20} />
                                         <h2 className="text-lg font-bold text-white tracking-wide">SELECT MERGE TARGET</h2>
                                     </div>
                                     <button onClick={() => setIsMergeSelectOpen(false)} className="text-slate-500 hover:text-white">
@@ -906,7 +906,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         autoFocus
                                         type="text"
                                         placeholder="Type to search existing nodes..."
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-cyan-500 transition-colors font-mono"
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-mira/40 transition-colors font-mono"
                                         value={mergeSearchTerm}
                                         onChange={e => setMergeSearchTerm(e.target.value)}
                                     />
@@ -931,17 +931,17 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                         setMergeSearchTerm('');
                                                     }
                                                 }}
-                                                className="w-full text-left p-3 rounded hover:bg-cyan-950/30 hover:border-cyan-500/30 border border-transparent flex items-center justify-between group transition-all"
+                                                className="w-full text-left p-3 rounded hover:bg-mira/15 hover:border-mira/30 border border-transparent flex items-center justify-between group transition-all"
                                             >
                                                 <div>
-                                                    <div className="font-bold text-slate-200 group-hover:text-cyan-300">{node.name}</div>
+                                                    <div className="font-bold text-slate-200 group-hover:text-mira">{node.name}</div>
                                                     <div className="text-[10px] text-slate-500 font-mono flex gap-2">
-                                                        <span className="text-cyan-700">{node.type}</span>
+                                                        <span className="text-mira">{node.type}</span>
                                                         <span>•</span>
                                                         <span>ID: {node.id.substring(0, 8)}...</span>
                                                     </div>
                                                 </div>
-                                                <ArrowRight className="text-slate-700 group-hover:text-cyan-500 opacity-0 group-hover:opacity-100 transition-all" size={16} />
+                                                <ArrowRight className="text-slate-700 group-hover:text-mira opacity-0 group-hover:opacity-100 transition-all" size={16} />
                                             </button>
                                         ))
                                     }

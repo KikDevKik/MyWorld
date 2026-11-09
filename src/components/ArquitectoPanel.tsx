@@ -167,6 +167,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         setFocusMode,
         reinitialize,
         existingSession,
+        existingSessionLoaded,
         resumeSession,
         discardSession,
         archiveSession,
@@ -732,6 +733,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 : undefined
                             }
                             existingSession={existingSession}
+                            loading={!existingSessionLoaded}
                         />
                         </div>
                     </div>

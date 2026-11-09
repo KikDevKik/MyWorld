@@ -96,13 +96,13 @@ const CheckableTreeNode: React.FC<{
                 className={`
                     flex items-center gap-2 py-1 px-2 rounded-md transition-colors
                     hover:bg-titanium-700/50 cursor-pointer
-                    ${isAllSelected ? 'bg-cyan-900/10' : ''}
+                    ${isAllSelected ? 'bg-mira/10' : ''}
                 `}
                 style={{ paddingLeft: `${depth * 16 + 8}px` }}
                 onClick={isFolder ? handleExpand : handleCheck}
             >
                 {/* EXPANDER */}
-                <div className="w-4 h-4 flex items-center justify-center shrink-0 text-titanium-500 hover:text-cyan-400">
+                <div className="w-4 h-4 flex items-center justify-center shrink-0 text-titanium-500 hover:text-mira">
                     {isFolder && (
                         isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
                     )}
@@ -113,8 +113,8 @@ const CheckableTreeNode: React.FC<{
                     className={`
                         w-4 h-4 flex items-center justify-center shrink-0 rounded border cursor-pointer transition-all
                         ${isAllSelected || isIndeterminate
-                            ? 'bg-cyan-600 border-cyan-500 text-white'
-                            : 'border-titanium-600 hover:border-cyan-500'
+                            ? 'bg-mira/25 border-mira/40 text-white'
+                            : 'border-titanium-600 hover:border-mira/40'
                         }
                     `}
                     onClick={handleCheck}
@@ -128,7 +128,7 @@ const CheckableTreeNode: React.FC<{
                     {isFolder ? (
                         <Folder size={14} className="text-amber-500/80" />
                     ) : (
-                        <FileText size={14} className="text-cyan-500/80" />
+                        <FileText size={14} className="text-mira/80" />
                     )}
                     <span className="text-sm truncate">{displayName}</span>
                 </div>
@@ -355,8 +355,8 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
             {/* HEADER */}
             <div className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 bg-titanium-900/50">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-cyan-500/10 rounded-lg">
-                        <Printer className="text-cyan-400" size={20} />
+                    <div className="p-2 bg-mira/10 rounded-lg">
+                        <Printer className="text-mira" size={20} />
                     </div>
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-bold text-white tracking-wide">{t.title}</h2>
@@ -368,16 +368,16 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
             <div className="flex-1 flex overflow-hidden">
                 {/* ZONE A: COMPOSITION (LEFT 60%) */}
-                <div className={`w-[60%] border-r flex flex-col bg-titanium-900/20 transition-all ${tourHighlight === 'files' ? 'border-cyan-500/50 shadow-[inset_0_0_20px_rgba(6,182,212,0.07)]' : 'border-titanium-800'}`}>
+                <div className={`w-[60%] border-r flex flex-col bg-titanium-900/20 transition-all ${tourHighlight === 'files' ? 'border-mira/50 shadow-[inset_0_0_20px_rgba(6,182,212,0.07)]' : 'border-titanium-800'}`}>
                     <div className="p-4 border-b border-titanium-800 bg-titanium-900/30 flex justify-between items-center">
                         <h3 className="text-xs font-bold text-titanium-400 uppercase tracking-wider">{t.composition}</h3>
-                        <span className="text-xs text-cyan-500 font-mono">{selectedFileIds.size} {t.files}</span>
+                        <span className="text-xs text-mira font-mono">{selectedFileIds.size} {t.files}</span>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-titanium-700">
                         {isFileTreeLoading ? (
                             <div className="flex flex-col items-center justify-center h-40 gap-3 text-titanium-500">
-                                <Loader2 className="animate-spin text-cyan-500" size={24} />
+                                <Loader2 className="animate-spin text-mira" size={24} />
                                 <span className="text-sm">{t.scanning}</span>
                             </div>
                         ) : fileTree && fileTree.length > 0 ? (
@@ -417,7 +417,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
                                     placeholder={t.bookTitlePlaceholder}
-                                    className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder:text-titanium-700"
+                                    className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-mira/40 focus:ring-1 focus:ring-mira/60 outline-none transition-all placeholder:text-titanium-700"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -427,7 +427,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                     value={subtitle}
                                     onChange={(e) => setSubtitle(e.target.value)}
                                     placeholder={t.subtitlePlaceholder}
-                                    className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-cyan-500 outline-none transition-all placeholder:text-titanium-700"
+                                    className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-mira/40 outline-none transition-all placeholder:text-titanium-700"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -437,7 +437,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                     value={author}
                                     onChange={(e) => setAuthor(e.target.value)}
                                     placeholder={t.authorPlaceholder}
-                                    className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-cyan-500 outline-none transition-all placeholder:text-titanium-700"
+                                    className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-mira/40 outline-none transition-all placeholder:text-titanium-700"
                                 />
                             </div>
                         </div>
@@ -450,7 +450,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div
-                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.includeCover ? 'bg-cyan-600 border-cyan-500' : 'border-titanium-600 group-hover:border-titanium-400'}`}
+                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.includeCover ? 'bg-mira/25 border-mira/40' : 'border-titanium-600 group-hover:border-titanium-400'}`}
                                     onClick={() => setOptions({ ...options, includeCover: !options.includeCover })}
                                 >
                                     {options.includeCover && <CheckSquare size={14} className="text-white" />}
@@ -460,7 +460,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div
-                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.includeToc ? 'bg-cyan-600 border-cyan-500' : 'border-titanium-600 group-hover:border-titanium-400'}`}
+                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.includeToc ? 'bg-mira/25 border-mira/40' : 'border-titanium-600 group-hover:border-titanium-400'}`}
                                     onClick={() => setOptions({ ...options, includeToc: !options.includeToc })}
                                 >
                                     {options.includeToc && <CheckSquare size={14} className="text-white" />}
@@ -470,7 +470,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div
-                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.pageBreakPerFile ? 'bg-cyan-600 border-cyan-500' : 'border-titanium-600 group-hover:border-titanium-400'}`}
+                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.pageBreakPerFile ? 'bg-mira/25 border-mira/40' : 'border-titanium-600 group-hover:border-titanium-400'}`}
                                     onClick={() => setOptions({ ...options, pageBreakPerFile: !options.pageBreakPerFile })}
                                 >
                                     {options.pageBreakPerFile && <CheckSquare size={14} className="text-white" />}
@@ -539,7 +539,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                         )}
 
                         {/* LEGAL AUDIT & PUBLIC CERTIFICATE */}
-                        <div className={`mt-4 p-3 bg-titanium-900/40 rounded-lg border space-y-3 transition-all ${tourHighlight === 'cert' ? 'border-cyan-500/40 shadow-[0_0_14px_rgba(6,182,212,0.15)]' : 'border-titanium-800'}`}>
+                        <div className={`mt-4 p-3 bg-titanium-900/40 rounded-lg border space-y-3 transition-all ${tourHighlight === 'cert' ? 'border-mira/40 shadow-[0_0_14px_rgba(6,182,212,0.15)]' : 'border-titanium-800'}`}>
                             <div>
                                 <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block">{t.reportFormat}</label>
                                 <div className="flex gap-2">
@@ -571,7 +571,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
                             <div className="pt-3 border-t border-titanium-800">
                                 <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block flex items-center gap-2">
-                                    <Shield size={10} className="text-cyan-400" />
+                                    <Shield size={10} className="text-mira" />
                                     {t.publicCert}
                                 </label>
 
@@ -602,7 +602,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                     <button
                                         onClick={handleGenerateCertificate}
                                         disabled={isGeneratingCert}
-                                        className="w-full py-2 bg-cyan-900/30 hover:bg-cyan-900/50 border border-cyan-800 hover:border-cyan-500 text-cyan-300 rounded transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider group"
+                                        className="w-full py-2 bg-mira/15 hover:bg-mira/15 border border-mira/40 hover:border-mira/40 text-mira rounded transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider group"
                                     >
                                         {isGeneratingCert ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
                                         <span>{t.generateCert}</span>

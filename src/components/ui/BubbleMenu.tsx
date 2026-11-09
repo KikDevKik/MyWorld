@@ -170,8 +170,8 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                 onClick={handleRead}
                 className={`p-2 rounded-md transition-colors flex items-center gap-2 ${
                     narratorState?.isPlaying
-                    ? 'text-cyan-400 bg-cyan-900/20 hover:text-cyan-200'
-                    : 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/30'
+                    ? 'text-mira bg-mira/15 hover:text-mira'
+                    : 'text-mira hover:text-mira hover:bg-mira/15'
                 }`}
                 title="Leer selección"
                 aria-label="Leer texto seleccionado"

@@ -59,10 +59,14 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     };
 
     return (
-        <div className="w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0 pointer-events-auto">
+        // Nov 2026: en el celular el riel es una barra inferior (antes ocupaba 64 de 375 px a la derecha, también al escribir).
+        <nav aria-label={es ? 'Herramientas' : 'Tools'} className={narrow
+            ? 'w-full h-14 bg-titanium-950 flex flex-row items-center z-30 flex-shrink-0 pointer-events-auto'
+            : 'w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0 pointer-events-auto'}
+            style={narrow ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}>
 
             {/* GEMS (Las Herramientas Principales) */}
-            <div className="flex flex-col gap-4 w-full px-2">
+            <div className={narrow ? 'flex flex-row items-center justify-around w-full px-1' : 'flex flex-col gap-4 w-full px-2'}>
                 {/* Nov 2026: en pantallas angostas, tus documentos se abren desde aquí. */}
                 {narrow && (
                     <>
@@ -76,7 +80,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                         >
                             <FolderOpen size={22} aria-hidden="true" />
                         </button>
-                        <div className="w-10 h-px bg-titanium-800" aria-hidden="true" />
+                        <div className={narrow ? 'w-px h-8 bg-titanium-800' : 'w-10 h-px bg-titanium-800'} aria-hidden="true" />
                     </>
                 )}
                 {DOCK_GEMS.map((gemId) => {
@@ -88,7 +92,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                             onClick={() => onGemSelect(gemId)}
                             className={`
                                 group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
-                                focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none
+                                focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none
                                 ${isActive
                                     ? 'bg-titanium-800 text-titanium-100 shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-titanium-600'
                                     : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}
@@ -110,7 +114,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                 {onOpenReport && (
                     <button
                         onClick={onOpenReport}
-                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none active:scale-95 ${reportActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
+                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none active:scale-95 ${reportActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
                         title={es ? 'El estudio: reporte del capítulo (canon y tres lecturas)' : 'The study: chapter report'}
                         aria-label={es ? 'El estudio' : 'The study'}
                     >
@@ -121,7 +125,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                 {onOpenBiblioteca && (
                     <button
                         onClick={onOpenBiblioteca}
-                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none active:scale-95 ${bibliotecaActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
+                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none active:scale-95 ${bibliotecaActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
                         title={es ? 'La biblioteca: aprende y practica con Mira' : 'The library: learn and practice with Mira'}
                         aria-label={es ? 'La biblioteca' : 'The library'}
                     >
@@ -129,10 +133,10 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                     </button>
                 )}
             </div>
-            <div className="flex-1" /> {/* Espaciador flexible para empujar lo de abajo */}
+            {!narrow && <div className="flex-1" />} {/* Espaciador flexible para empujar lo de abajo */}
 
             {/* 🟢 ACCESOS DIRECTOS FLOTANTES (Dev Only) */}
-            <div className="flex flex-col gap-4 w-full px-2 pb-4">
+            <div className={narrow ? 'hidden' : 'flex flex-col gap-4 w-full px-2 pb-4'}>
                 {/* 🧪 DRIFT SIMULATION BUTTON (DEV ONLY) */}
                 {onSimulateDrift && (
                     <button
@@ -145,7 +149,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                 )}
             </div>
 
-        </div>
+        </nav>
     );
 };
 

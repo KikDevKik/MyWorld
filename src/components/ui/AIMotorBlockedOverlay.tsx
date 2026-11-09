@@ -27,7 +27,7 @@ export function AIMotorBlockedOverlay({ toolName }: Props) {
             <div className="mt-4 flex items-center gap-4 text-xs text-zinc-500">
                 <button
                     onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
-                    className="hover:text-cyan-400 transition-colors underline underline-offset-2"
+                    className="hover:text-mira transition-colors underline underline-offset-2"
                 >
                     Gemini Gratis →
                 </button>

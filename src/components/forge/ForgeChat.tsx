@@ -652,7 +652,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                                 <div className={`p-4 rounded-xl border text-xs font-mono flex items-center gap-3 animate-pulse ${
                                     thinkingState === 'ANALYZING'
                                         ? 'bg-accent-900/10 border-accent-500/20 text-accent-300'
-                                        : 'bg-titanium-900/50 border-cyan-500/20 text-cyan-300'
+                                        : 'bg-titanium-900/50 border-mira/20 text-mira'
                                 }`}>
                                     {thinkingState === 'CONSULTING_ARCHIVES' ? (
                                         <>
@@ -686,7 +686,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                     <div className="flex items-center justify-between px-1">
                          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                                 selectedScope.id
-                                ? 'bg-cyan-900/30 border-cyan-500/50 text-cyan-300'
+                                ? 'bg-mira/15 border-mira/50 text-mira'
                                 : 'bg-titanium-800 border-titanium-700 text-titanium-500'
                             }`}>
                             <Shield size={12} />
@@ -697,7 +697,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                     {/* TEXTAREA WRAPPER */}
                     <div className={`rounded-2xl p-1 transition-all shadow-lg ${
                          selectedScope.id
-                                ? 'border border-cyan-900/50 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/50 bg-zinc-900'
+                                ? 'border border-mira/50 focus-within:border-mira/40 focus-within:ring-1 focus-within:ring-mira/50 bg-zinc-900'
                                 : 'border border-titanium-700 focus-within:border-accent-DEFAULT focus-within:ring-1 focus-within:ring-accent-DEFAULT/50 bg-zinc-900'
                     }`}>
                         <ChatInput

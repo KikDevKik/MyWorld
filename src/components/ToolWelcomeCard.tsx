@@ -25,10 +25,10 @@ const COLOR_CLASSES: Record<ToolAccentColor, {
         arrow: 'text-violet-400',
     },
     cyan: {
-        wrapper: 'border-cyan-500/20 bg-cyan-500/5',
-        iconBox: 'bg-cyan-500/20 border-cyan-500/30',
-        tagline: 'text-cyan-400',
-        arrow: 'text-cyan-400',
+        wrapper: 'border-mira/20 bg-mira/5',
+        iconBox: 'bg-mira/20 border-mira/30',
+        tagline: 'text-mira',
+        arrow: 'text-mira',
     },
     amber: {
         wrapper: 'border-amber-500/20 bg-amber-500/5',

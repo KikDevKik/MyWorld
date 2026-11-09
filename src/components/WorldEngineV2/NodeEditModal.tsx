@@ -90,7 +90,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                          {/* HEADER */}
                          <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
                              <h2 id="node-edit-title" className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                                 <Edit2Icon className="text-cyan-400" size={20} />
+                                 <Edit2Icon className="text-mira" size={20} />
                                  {tNexus.editNode || "Editar Nodo"}
                              </h2>
                              <button
@@ -112,7 +112,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                      id="node-name"
                                      value={name}
                                      onChange={(e) => setName(e.target.value)}
-                                     className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-white focus:border-cyan-500 outline-none transition-colors font-bold"
+                                     className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-white focus:border-mira/40 outline-none transition-colors font-bold"
                                      placeholder="Nombre de la entidad..."
                                      required
                                  />
@@ -126,7 +126,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                          id="node-type"
                                          value={type}
                                          onChange={(e) => setType(e.target.value as EntityType)}
-                                         className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-300 focus:border-cyan-500 outline-none transition-colors appearance-none uppercase font-mono"
+                                         className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-300 focus:border-mira/40 outline-none transition-colors appearance-none uppercase font-mono"
                                      >
                                          {ENTITY_TYPES.map(t => (
                                              <option key={t} value={t}>{t}</option>
@@ -141,7 +141,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                          id="node-subtype"
                                          value={subtype}
                                          onChange={(e) => setSubtype(e.target.value)}
-                                         className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-cyan-300 focus:border-cyan-500 outline-none transition-colors uppercase font-mono tracking-wide"
+                                         className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-mira focus:border-mira/40 outline-none transition-colors uppercase font-mono tracking-wide"
                                          placeholder="EJ: CIUDAD, ESPADA..."
                                      />
                                  </div>
@@ -154,7 +154,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                      id="node-description"
                                      value={description}
                                      onChange={(e) => setDescription(e.target.value)}
-                                     className="w-full h-32 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-300 focus:border-cyan-500 outline-none transition-colors resize-none font-mono leading-relaxed custom-scrollbar"
+                                     className="w-full h-32 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-300 focus:border-mira/40 outline-none transition-colors resize-none font-mono leading-relaxed custom-scrollbar"
                                      placeholder="Descripción o contexto..."
                                  />
                              </div>
@@ -186,7 +186,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                      <button
                                          type="submit"
                                          disabled={isSaving || isDeleting}
-                                         className="flex items-center gap-2 px-6 py-2 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                         className="flex items-center gap-2 px-6 py-2 rounded bg-mira/25 hover:bg-mira/25 text-white text-xs font-bold shadow-lg shadow-mira/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                      >
                                          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                                          {isSaving ? (t.common?.saving?.toUpperCase() || 'GUARDANDO...') : (t.common?.saveChanges?.toUpperCase() || 'GUARDAR CAMBIOS')}

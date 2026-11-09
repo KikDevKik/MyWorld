@@ -20,9 +20,10 @@ interface Props {
     onDiscard: () => void;
     lastSessionDate?: string;
     existingSession?: ExistingSession | null;
+    loading?: boolean;
 }
 
-export default function WelcomeState({ projectName, onStart, onResume, onDiscard, lastSessionDate, existingSession }: Props) {
+export default function WelcomeState({ projectName, onStart, onResume, onDiscard, lastSessionDate, existingSession, loading }: Props) {
     const [discardStep, setDiscardStep] = useState<0 | 1 | 2>(0);
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
@@ -51,7 +52,7 @@ export default function WelcomeState({ projectName, onStart, onResume, onDiscard
                         <div className="min-w-0 text-left">
                             <h3 className="font-serif text-xl font-semibold text-titanium-100 leading-tight">{projectName}</h3>
                             <p className="text-[13px] text-titanium-400 mt-1">
-                                {date ? (es ? `Última conversación: ${date}` : `Last conversation: ${date}`) : (es ? 'Todavía no hay conversaciones' : 'No conversations yet')}
+                                {loading && !date ? (es ? 'Buscando tu última conversación…' : 'Looking for your last conversation…') : date ? (es ? `Última conversación: ${date}` : `Last conversation: ${date}`) : (es ? 'Todavía no hay conversaciones' : 'No conversations yet')}
                                 {existingSession && <> · {resolved} {es ? (resolved === 1 ? 'resuelta' : 'resueltas') : 'resolved'} · {pending} {es ? (pending === 1 ? 'pendiente' : 'pendientes') : 'open'}</>}
                             </p>
                         </div>

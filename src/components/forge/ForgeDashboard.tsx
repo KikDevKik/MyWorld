@@ -481,10 +481,10 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     <div className="flex-1 overflow-hidden p-4 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 z-10">
 
                         {/* COLUMN 1: ECOS (Radar) */}
-                        <DroppableColumn id="ECO" className={`flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border transition-all ${tourHighlightedColumn === 'ecos' ? 'border-cyan-500/60 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : 'border-titanium-800/50'}`}>
+                        <DroppableColumn id="ECO" className={`flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border transition-all ${tourHighlightedColumn === 'ecos' ? 'border-mira/60 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : 'border-titanium-800/50'}`}>
                             <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
-                                <Ghost size={16} className="text-cyan-500" />
-                                <h2 className="text-sm font-bold text-cyan-500 uppercase tracking-wider">{t.echoes}</h2>
+                                <Ghost size={16} className="text-mira" />
+                                <h2 className="text-sm font-bold text-mira uppercase tracking-wider">{t.echoes}</h2>
                                 <span className="ml-auto text-xs font-mono text-titanium-600">{ghosts.length}</span>
                             </div>
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">

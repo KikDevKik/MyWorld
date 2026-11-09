@@ -178,22 +178,22 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                         </p>
                         <div className="flex flex-col gap-2">
                             <div className="flex items-start gap-2">
-                                <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
+                                <span className="text-mira text-[12px] mt-0.5">→</span>
                                 <p className="text-[12px] text-titanium-300">{tSA.premisaCreated}</p>
                             </div>
                             <div className="flex items-start gap-2">
-                                <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
+                                <span className="text-mira text-[12px] mt-0.5">→</span>
                                 <p className="text-[12px] text-titanium-300">{tSA.protagonistCreated}</p>
                             </div>
                             <div className="flex items-start gap-2">
-                                <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
+                                <span className="text-mira text-[12px] mt-0.5">→</span>
                                 <p className="text-[12px] text-titanium-300">{tSA.chapterCreated}</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-4">
-                        <p className="text-[13px] text-cyan-300 font-medium mb-1">{tSA.whatNow}</p>
+                    <div className="bg-mira/5 border border-mira/20 rounded-xl p-4">
+                        <p className="text-[13px] text-mira font-medium mb-1">{tSA.whatNow}</p>
                         <p className="text-[12px] text-titanium-500 leading-relaxed">{tSA.openChapter}</p>
                     </div>
 
@@ -204,7 +204,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
 
                     <button
                         onClick={onClose}
-                        className="w-full py-3 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 font-medium rounded-xl hover:bg-cyan-500/25 transition-all text-[14px]"
+                        className="w-full py-3 bg-mira/15 border border-mira/40 text-mira font-medium rounded-xl hover:bg-mira/25 transition-all text-[14px]"
                     >
                         {tSA.startWriting}
                     </button>
@@ -225,7 +225,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
 
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Sparkles size={16} className="text-cyan-400" />
+                        <Sparkles size={16} className="text-mira" />
                         <span className="text-[11px] font-mono text-titanium-500 uppercase tracking-wider">
                             {tSA.header}
                         </span>
@@ -240,7 +240,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
 
                 <div className="h-0.5 bg-titanium-800 rounded-full">
                     <div
-                        className="h-full bg-cyan-500 rounded-full transition-all duration-500"
+                        className="h-full bg-mira/25 rounded-full transition-all duration-500"
                         style={{ width: `${((currentBlock + 1) / QUESTION_BLOCKS.length) * 100}%` }}
                     />
                 </div>
@@ -274,7 +274,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                                 }}
                                 className={`w-full text-left p-4 rounded-xl border transition-all ${
                                     isSelected
-                                        ? 'bg-cyan-500/10 border-cyan-500/40 text-titanium-200'
+                                        ? 'bg-mira/10 border-mira/40 text-titanium-200'
                                         : 'bg-titanium-900/40 border-titanium-800 text-titanium-400 hover:border-titanium-600 hover:bg-titanium-900/60'
                                 }`}
                             >
@@ -297,7 +297,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                                             value={(answers as any)[field.key] || ''}
                                             onChange={e => handleAnswer(field.key, e.target.value)}
                                             placeholder={field.placeholder}
-                                            className="w-full bg-titanium-900 border border-titanium-700 rounded-xl px-4 py-3 text-[13px] text-titanium-200 placeholder-titanium-700 focus:outline-none focus:border-cyan-500/50 resize-none min-h-[90px]"
+                                            className="w-full bg-titanium-900 border border-titanium-700 rounded-xl px-4 py-3 text-[13px] text-titanium-200 placeholder-titanium-700 focus:outline-none focus:border-mira/50 resize-none min-h-[90px]"
                                         />
                                     ) : (
                                         <input
@@ -306,7 +306,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                                             onChange={e => handleAnswer(field.key, e.target.value)}
                                             placeholder={field.placeholder}
                                             maxLength={field.maxLength}
-                                            className="w-full bg-titanium-900 border border-titanium-700 rounded-xl px-4 py-3 text-[13px] text-titanium-200 placeholder-titanium-700 focus:outline-none focus:border-cyan-500/50"
+                                            className="w-full bg-titanium-900 border border-titanium-700 rounded-xl px-4 py-3 text-[13px] text-titanium-200 placeholder-titanium-700 focus:outline-none focus:border-mira/50"
                                         />
                                     )}
                                     {field.tip && (
@@ -333,11 +333,11 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                     <button
                         onClick={handleNext}
                         disabled={isGenerating || !canAdvance()}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[13px] font-medium rounded-xl hover:bg-cyan-500/25 transition-all disabled:opacity-40"
+                        className="flex items-center gap-2 px-6 py-2.5 bg-mira/15 border border-mira/40 text-mira text-[13px] font-medium rounded-xl hover:bg-mira/25 transition-all disabled:opacity-40"
                     >
                         {isGenerating ? (
                             <>
-                                <div className="w-3 h-3 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
+                                <div className="w-3 h-3 rounded-full border border-mira/30 border-t-transparent animate-spin" />
                                 {tSA.generating}
                             </>
                         ) : currentBlock === 0 && writerProfile === 'experienced' ? (

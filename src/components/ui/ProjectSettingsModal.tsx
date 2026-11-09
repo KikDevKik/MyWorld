@@ -614,7 +614,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                             aria-selected={activeTab === 'taxonomy'}
                             aria-controls="panel-taxonomy"
                             className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'taxonomy'
-                                ? 'bg-cyan-900/50 text-cyan-200 shadow-sm border border-cyan-800/50'
+                                ? 'bg-mira/15 text-mira shadow-sm border border-mira/50'
                                 : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
                                 }`}
                         >
@@ -635,7 +635,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                 {/* Header Title */}
                                 <div>
                                     <h3 className="text-sm font-bold text-titanium-200 flex items-center gap-2">
-                                        <Download size={16} className="text-cyan-500" /> {t.settings.migrateDrive}
+                                        <Download size={16} className="text-mira" /> {t.settings.migrateDrive}
                                     </h3>
                                 </div>
 
@@ -649,7 +649,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                         </p>
                                         <button
                                             onClick={handleRequestImportScope}
-                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/30 text-cyan-400 text-sm font-medium rounded-lg transition-colors"
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-mira/20 hover:bg-mira/30 border border-mira/30 text-mira text-sm font-medium rounded-lg transition-colors"
                                         >
                                             <FolderOpen size={15} />
                                             {t.settings.authorizeImport}
@@ -673,7 +673,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                             onClick={handleOpenFolderPicker}
                                             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 text-titanium-300 text-sm rounded-lg transition-colors"
                                         >
-                                            <Folder size={15} className="text-cyan-400" />
+                                            <Folder size={15} className="text-mira" />
                                             Seleccionar carpeta de mi proyecto
                                         </button>
                                     </div>
@@ -690,14 +690,14 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                             {pendingFolders.map((folder, index) => (
                                                 <div key={folder.id} className="flex flex-col gap-1.5 p-3 bg-titanium-800/50 rounded border border-titanium-700">
                                                     <div className="flex items-center gap-2 text-sm text-titanium-200 font-medium">
-                                                        <Folder size={14} className="text-cyan-500 shrink-0" />
+                                                        <Folder size={14} className="text-mira shrink-0" />
                                                         <span className="truncate">{folder.name}</span>
                                                     </div>
                                                     
                                                     <select
                                                         value={folder.targetRole || ''}
                                                         onChange={(e) => handleUpdateFolderRoute(index, e.target.value as any)}
-                                                        className="w-full bg-titanium-900 text-xs text-titanium-300 border border-titanium-600 rounded px-2 py-1.5 focus:border-cyan-500 outline-none"
+                                                        className="w-full bg-titanium-900 text-xs text-titanium-300 border border-titanium-600 rounded px-2 py-1.5 focus:border-mira/40 outline-none"
                                                     >
                                                         <option value="" disabled>Asignar Rol Funcional...</option>
                                                         <option value="canon">Canon (Añadir a Rutas Canon)</option>
@@ -717,7 +717,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                             </button>
                                             <button
                                                 onClick={handleExecuteImport}
-                                                className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white rounded transition-colors"
+                                                className="flex-1 py-2 bg-mira/25 hover:bg-mira/25 text-xs font-medium text-white rounded transition-colors"
                                             >
                                                 Iniciar Copia
                                             </button>
@@ -729,7 +729,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                 {importState === 'copying' && (
                                     <div className="space-y-3 animate-in fade-in duration-300">
                                         <div className="flex items-center gap-2">
-                                            <Loader2 size={13} className="text-cyan-400 animate-spin" />
+                                            <Loader2 size={13} className="text-mira animate-spin" />
                                             <span className="text-sm text-titanium-400">
                                                 {totalFiles > 0 
                                                     ? `Importando carpeta ${Math.min(copiedCount + 1, totalFiles)} de ${totalFiles}...` 
@@ -738,7 +738,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                         </div>
                                         <div className="h-1.5 bg-titanium-800 rounded-full overflow-hidden">
                                             <div 
-                                                className={`h-full bg-cyan-500 rounded-full transition-all duration-500 ${totalFiles === 0 ? 'animate-pulse w-full' : ''}`}
+                                                className={`h-full bg-mira/25 rounded-full transition-all duration-500 ${totalFiles === 0 ? 'animate-pulse w-full' : ''}`}
                                                 style={totalFiles > 0 ? { width: `${(Math.max(copiedCount, 0.5) / totalFiles) * 100}%` } : {}}
                                             />
                                         </div>

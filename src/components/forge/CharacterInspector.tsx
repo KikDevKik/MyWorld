@@ -259,7 +259,7 @@ Materialized from Deep Scan.
 
                         <div className="flex items-center gap-2">
                              {/* Status Badge */}
-                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isGhost ? 'bg-purple-900/20 border-purple-500/30 text-purple-300' : 'bg-cyan-900/20 border-cyan-500/30 text-cyan-300'}`}>
+                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isGhost ? 'bg-purple-900/20 border-purple-500/30 text-purple-300' : 'bg-mira/15 border-mira/30 text-mira'}`}>
                                 {isGhost ? (tForge.detected || 'Detected') : (tForge.existing || 'Existing')}
                              </span>
 

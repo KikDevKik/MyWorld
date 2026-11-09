@@ -75,15 +75,15 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
                 className={`
                     group flex items-center justify-center rounded transition-all
                     ${mode === 'war-room'
-                        ? 'p-4 bg-titanium-800/20 hover:bg-cyan-900/20 border border-titanium-700/50 hover:border-cyan-500/50 gap-3 justify-start'
-                        : 'w-10 h-10 hover:bg-cyan-900/20 text-titanium-400 hover:text-cyan-400'}
+                        ? 'p-4 bg-titanium-800/20 hover:bg-mira/15 border border-titanium-700/50 hover:border-mira/50 gap-3 justify-start'
+                        : 'w-10 h-10 hover:bg-mira/15 text-titanium-400 hover:text-mira'}
                 `}
                 title={`${t.memory} (${t.forceRead})`}
             >
-                <BrainCircuit size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-cyan-500' : ''} />
+                <BrainCircuit size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-mira' : ''} />
                 {mode === 'war-room' && (
                     <div className="text-left">
-                        <div className="text-sm font-bold text-cyan-100">{t.memory}</div>
+                        <div className="text-sm font-bold text-mira">{t.memory}</div>
                         <div className="text-[10px] text-titanium-500 uppercase">{t.forceRead}</div>
                     </div>
                 )}
