@@ -3,6 +3,7 @@ import { Send, Paperclip, X, FileText, Lightbulb } from 'lucide-react';
 import { useProjectConfig } from '../../contexts/ProjectConfigContext';
 import { readLastDoc } from '../../utils/lastDoc';
 import { MiraSprite } from '../mira/MiraSprite';
+import { toast } from 'sonner';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 
@@ -42,7 +43,10 @@ export default function IntentionModal({ onConfirm, isLoading, isFirstTime }: Pr
     // (proyecto vacío, notas traídas de otra app, o ya escribiendo). La propuesta se puede editar antes de enviar.
     const { config, fileTree } = useProjectConfig() as any;
     const projectName = config?.projectName || (isEn ? 'my story' : 'mi historia');
-    const hasCanon = ((fileTree || []).length > 0) || ((config?.canonPaths || []).length > 0);
+    // Nov 2026: un proyecto recién creado ya tiene carpetas (Universo, Personajes…) pero ningún documento: cuenta
+    // como vacío. Antes se le proponía la «sesión de cimientos» de alguien que ya escribe.
+    const countDocs = (nodes: any[]): number => (nodes || []).reduce((n, x) => n + (x?.mimeType === 'application/vnd.google-apps.folder' || x?.type === 'folder' || Array.isArray(x?.children) && !x?.mimeType ? countDocs(x?.children || []) : 1), 0);
+    const hasCanon = countDocs(fileTree || []) > 2;
     const isWriting = !!readLastDoc(config?.folderId);
     const proposal = useMemo(() => {
         if (!hasCanon) return isEn ? {
@@ -84,11 +88,11 @@ export default function IntentionModal({ onConfirm, isLoading, isFirstTime }: Pr
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
         
         if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
-            alert('Solo se aceptan archivos PDF, MD o DOCX como referencia cultural.');
+            toast.error(isEn ? 'Only PDF, MD or DOCX files.' : 'Solo se aceptan archivos PDF, MD o DOCX.');
             return;
         }
         if (file.size > 15 * 1024 * 1024) {
-            alert('El archivo no debe superar 15MB.');
+            toast.error(isEn ? 'The file must be under 15 MB.' : 'El archivo no debe superar 15 MB.');
             return;
         }
 
@@ -107,7 +111,7 @@ export default function IntentionModal({ onConfirm, isLoading, isFirstTime }: Pr
                 mimeType: file.type || 'text/plain'
             });
         } catch (e) {
-            alert('Error al procesar el archivo.');
+            toast.error(isEn ? 'Could not read the file.' : 'No se pudo leer el archivo.');
         } finally {
             setIsProcessingFile(false);
         }

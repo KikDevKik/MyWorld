@@ -43,7 +43,8 @@ export default function DocPicker({ picked, onPick, onClose }: { picked: PickedD
         for (const d of list) m.set(d.folder, [...(m.get(d.folder) || []), d]);
         return [...m.entries()];
     }, [list]);
-    const dupNames = useMemo(() => { const c = new Map<string, number>(); (all || []).forEach(d => c.set(fold(d.name), (c.get(fold(d.name)) || 0) + 1)); return c; }, [all]);
+    // Nov 2026: solo avisa si el mismo nombre está en carpetas distintas (dos entradas en la misma carpeta son el mismo documento indexado dos veces).
+    const dupNames = useMemo(() => { const c = new Map<string, Set<string>>(); (all || []).forEach(d => c.set(fold(d.name), new Set([...(c.get(fold(d.name)) || []), d.folder]))); return new Map([...c].map(([k, v]) => [k, v.size])); }, [all]);
 
     return createPortal(
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">

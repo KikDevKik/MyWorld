@@ -193,13 +193,13 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             legal: "Aviso Legal & Autoría"
         },
         createProject: {
-            modalTitle: "Nuevo Universo",
-            projectName: "Nombre del Proyecto",
-            placeholder: "Ej. Crónicas de la Eternidad",
-            description: "Crearemos automáticamente una estructura de carpetas optimizada (Canon, Personajes, Manuscrito) en tu Google Drive.",
+            modalTitle: "Tu proyecto",
+            projectName: "¿Cómo se llama tu historia?",
+            placeholder: "Ej.: Crónicas de la Eternidad",
+            description: "MyWorld crea en tu Drive las carpetas para tu mundo (personajes, lugares, reglas) y tus capítulos. El nombre lo puedes cambiar después.",
             cancel: "Cancelar",
-            create: "Crear Universo",
-            creating: "Creando..."
+            create: "Crear mi proyecto",
+            creating: "Creando…"
         },
         tools: {
             director: "Mira",

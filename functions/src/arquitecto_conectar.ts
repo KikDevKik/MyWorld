@@ -11,6 +11,8 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { callClaude, claudeEnabledForCurrentUser, CLAUDE_SONNET, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
 import { GeminiEmbedder } from "./utils/vector_utils";
+import { GoogleGenerativeAI } from "./utils/genai";
+import { smartGenerateContent } from "./utils/smart_generate";
 import { fileText } from "./personajes";
 import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
 import { saveBookPov } from "./mira_taller";
@@ -28,8 +30,10 @@ export function wantsAudit(goal: string): boolean {
     return /(inconsisten|contradic|consistencia|auditor|lagunas?|huecos? l[oó]gic|disonanc|errores? (de|en) (mi )?(mundo|lore|sistema))/i.test(g);
 }
 
+// Nov 2026: también en el nivel gratis. Antes, sin Claude, la conversación caía en la auditoría antigua
+// (varios pasos, 3 a 5 minutos por respuesta y sin agenda). Ahora es la misma conversación, con Gemini.
 export function connectAvailable(): boolean {
-    return claudeEnabledForCurrentUser();
+    return true;
 }
 
 const CONECTAR_SYSTEM = `Eres El Arquitecto de MyWorld. El autor viene ANTES de escribir: tiene una idea nueva, varias ideas sueltas o un mundo ya establecido, y no sabe cómo conectarlo todo. Tu trabajo es ayudarle a ver las conexiones que ya existen en su material y a decidir las que faltan. Él decide; tú preguntas, muestras y ordenas.
@@ -41,7 +45,7 @@ CÓMO TRABAJAS:
 4. Cuida el miedo al retcon: si una decisión afecta libros o eras futuras, dilo y propón cómo dejarla abierta sin comprometerse todavía.
 5. Nunca escribes su trama ni su prosa. Puedes ordenar, resumir lo que ya decidió y señalar lo que falta decidir.
 6. Si lo que quiere es jugar sin compromiso, sugiérele la pestaña «Qué pasaría si»; si quiere completar la ficha de un personaje, la pestaña «Personajes».
-7. Breve y claro: entre 120 y 300 palabras. Sin títulos innecesarios. Termina con tu pregunta.
+7. Breve y claro: entre 100 y 220 palabras, en párrafos cortos (2 o 3 líneas) que se lean bien en un celular. Sin títulos innecesarios. Termina con tu pregunta.
 8. Su proyecto puede tener varias sagas o libros con documentos que se llaman igual (p. ej. «Capítulo 1» del libro de Anna y del de Megu). Fíjate en la carpeta de cada documento (va entre paréntesis) y no los mezcles. Si no sabes cuál es, pregúntale; si te falta el texto, pídele que lo traiga con «Traer un documento» (el botón junto al mensaje).
 9. Si el autor trajo documentos a la conversación, léelos completos: son la referencia principal cuando hable de ellos.
 10. Antes de decir que algo «no está en su material», búscalo en el MATERIAL DEL LIBRO EN FOCO, en lo que nombró y en los fragmentos. Si de verdad no está, di en qué documentos lo buscaste para que él pueda corregirte.
@@ -258,7 +262,8 @@ async function sessionHistory(uid: string, sessionId: string, limit = 16): Promi
         }).join("\n\n");
 }
 
-async function ask(contextBlocks: string[], instruction: string, label: string, maxTokens = 3000, stable = ""): Promise<string> {
+async function ask(contextBlocks: string[], instruction: string, label: string, maxTokens = 3000, stable = "", apiKey = ""): Promise<string> {
+    if (!claudeEnabledForCurrentUser()) return askGemini(contextBlocks, instruction, label, maxTokens, stable, apiKey);
     // Nov 2026: el material del libro en foco no cambia entre mensajes: va primero y con caché de 1 h (1/10 del precio).
     const content: any[] = [];
     if (stable) content.push({ type: "text", text: stable, cache_control: { type: "ephemeral", ttl: "1h" } });
@@ -278,6 +283,23 @@ async function ask(contextBlocks: string[], instruction: string, label: string, 
     return r.text.trim();
 }
 
+// Nov 2026: nivel gratis. Una sola llamada a Gemini con el mismo material y las mismas reglas.
+async function askGemini(contextBlocks: string[], instruction: string, label: string, maxTokens: number, stable: string, apiKey: string): Promise<string> {
+    if (!apiKey) throw new HttpsError("failed-precondition", "El Arquitecto no tiene una clave de IA para responder.");
+    const prompt = [stable, ...contextBlocks.filter(Boolean), instruction].filter(Boolean).join("\n\n");
+    const r = await smartGenerateContent(new GoogleGenerativeAI(apiKey), prompt, {
+        systemInstruction: CONECTAR_SYSTEM + "\n\n" + MYWORLD_VOICE,
+        _tier: "normal", taskType: "standard", thinkingBudget: 1024,
+        maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.7,
+        contextLabel: `${label}_Gemini`,
+    });
+    if (!r.text) {
+        logger.warn(`⚠️ [ARQUITECTO·CONECTAR] ${label} (Gemini) sin texto: ${r.error || ""} ${r.details || ""}`);
+        throw new HttpsError("internal", "El Arquitecto no pudo responder. Intenta de nuevo.");
+    }
+    return r.text.trim();
+}
+
 /** Primer mensaje de una sesión «Conectar». */
 export async function conectarStart(uid: string, goal: string, apiKey: string): Promise<string> {
     const [map, memory, material, named] = await Promise.all([
@@ -292,7 +314,7 @@ export async function conectarStart(uid: string, goal: string, apiKey: string): 
         memory ? `MEMORIA DEL PROYECTO (decisiones y dónde quedó):\n${memory}` : "",
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES:\n${material}` : "",
-    ], `INICIO DE SESIÓN. El autor dice lo que trae hoy:\n«${goal}»\n\nResponde: en 3 a 5 líneas, qué piezas de su material ves relacionadas con eso (nombrando archivos) y por qué; luego dile en una línea los puntos que van a ver hoy (la agenda) y haz tu primera pregunta (máximo 2). Si su material está vacío, pregúntale por lo esencial en vez de suponer.\n\n${AGENDA_RULE}`, "ArquitectoConectarInicio", 3000, (await focusMaterial(uid, goal, [])).text);
+    ], `INICIO DE SESIÓN. El autor dice lo que trae hoy:\n«${goal}»\n\nResponde: en 3 a 5 líneas, qué piezas de su material ves relacionadas con eso (nombrando archivos) y por qué; luego dile en una línea los puntos que van a ver hoy (la agenda) y haz tu primera pregunta (máximo 2). Si su material está vacío, pregúntale por lo esencial en vez de suponer.\n\n${AGENDA_RULE}`, "ArquitectoConectarInicio", 3000, (await focusMaterial(uid, goal, [])).text, apiKey);
 }
 
 // Nov 2026 (gasto): nombres de los documentos que ya van completos en el bloque con caché (para no repetirlos).
@@ -335,7 +357,7 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
         material ? `FRAGMENTOS RELEVANTES DE SU MATERIAL:\n${material}` : "",
         history ? `CONVERSACIÓN HASTA AHORA:\n${history}` : "",
         agenda.length ? `AGENDA ACTUAL DE LA SESIÓN (respuesta n.º ${turns}):\n${agenda.map(p => `- [${p.e}] ${p.t}`).join("\n")}` : `AGENDA: todavía no hay (respuesta n.º ${turns}); ármala.`,
-    ], `AUTOR: ${query}\n\n${CRAFT_RULE}\n\n${AGENDA_RULE}`, "ArquitectoConectar", 3000, stable);
+    ], `AUTOR: ${query}\n\n${CRAFT_RULE}\n\n${AGENDA_RULE}`, "ArquitectoConectar", 3000, stable, apiKey);
     // Nov 2026: primero el foco de oficio (si lo anotó), después la agenda.
     const sc = splitCraft(raw);
     if (sc.craft) await saveCraft(uid, sc.craft, "arquitecto");
@@ -345,14 +367,14 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
 }
 
 /** Cierre: resumen en cuatro partes; se guarda como nota en Recursos/«Sesiones del Arquitecto». */
-export async function conectarClose(uid: string, sessionId: string, accessToken?: string): Promise<{ summary: string; savedAs?: string }> {
+export async function conectarClose(uid: string, sessionId: string, accessToken?: string, apiKey = ""): Promise<{ summary: string; savedAs?: string }> {
     const history = await sessionHistory(uid, sessionId, 40);
     if (!history) throw new HttpsError("failed-precondition", "No hay conversación que resumir.");
-    const summary = await ask([`CONVERSACIÓN COMPLETA:\n${history}`], CLOSE_TASK, "ArquitectoCierre", 3000);
+    const summary = await ask([`CONVERSACIÓN COMPLETA:\n${history}`], CLOSE_TASK, "ArquitectoCierre", 3000, "", apiKey);
     // Nov 2026: lo decidido pasa al plan del escritorio («Según tu plan, sigue…»), y queda a nivel de proyecto:
     // no se pierde al empezar otra conversación.
     try {
-        const planRaw = await ask([`RESUMEN DE LA SESIÓN:\n${summary}`], PLAN_TASK, "ArquitectoPlan", 1200);
+        const planRaw = await ask([`RESUMEN DE LA SESIÓN:\n${summary}`], PLAN_TASK, "ArquitectoPlan", 1200, "", apiKey);
         const j = JSON.parse(planRaw.slice(planRaw.indexOf("{"), planRaw.lastIndexOf("}") + 1));
         const misiones: string[] = (Array.isArray(j.misiones) ? j.misiones : []).map((m: any) => String(m || "").trim().slice(0, 200)).filter(Boolean).slice(0, 8);
         if (misiones.length) {

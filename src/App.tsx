@@ -52,7 +52,7 @@ import { useLayoutStore } from './stores/useLayoutStore';
 import { useArquitectoStore } from './stores/useArquitectoStore'; // 🟢 IMPORT STORE
 import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 import { CreativeAuditService } from './services/CreativeAuditService';
-import CreateFileModal from './components/ui/CreateFileModal';
+import CreateItemModal from './components/ui/CreateItemModal';
 import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
 import ChapterReportPanel from './components/ui/ChapterReportPanel'; // Oct 2026
@@ -1454,6 +1454,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onGoToArquitecto={() => setActiveView('arquitecto')}
                         onGoToDirector={() => setActiveView('director')}
                         onContinue={(doc) => { setCurrentFileName(doc.name); handleTimelineFileSelect(doc.id); }}
+                        onNewChapter={() => setIsCreateFileModalOpen(true)}
                         onAskMira={(message) => { setDirectorPendingMessage(message); setActiveView('director'); }}
                     />
                 );
@@ -1633,11 +1634,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 <FieldManualModal onClose={() => setIsFieldManualOpen(false)} />
             )}
 
-            <CreateFileModal
+            {/* Nov 2026: la misma ventana de «Crear nuevo» del cajón (la vieja tenía otro estilo y otra lógica). */}
+            <CreateItemModal
                 isOpen={isCreateFileModalOpen}
                 onClose={() => setIsCreateFileModalOpen(false)}
                 onFileCreated={handleFileCreated}
+                onFolderCreated={() => window.dispatchEvent(new Event('mw-docs-changed'))}
                 accessToken={oauthToken}
+                defaultType="file"
             />
 
             <GenesisWizardModal
@@ -1749,9 +1753,9 @@ function App() {
             localStorage.removeItem('show_taxonomy_toast');
             setTimeout(() => {
                 toast.success(
-                    'Carpetas categorizadas automáticamente.',
+                    'Tu proyecto está listo',
                     {
-                        description: 'Puedes ajustar la taxonomía en Configuración → Proyecto.',
+                        description: 'Ya están tus carpetas en Drive. Empieza por tu primer capítulo, o cuéntale tu idea a Mira.',
                         duration: 6000
                     }
                 );

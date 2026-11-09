@@ -91,7 +91,12 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
         for (const p of config?.resourcePaths || []) await processPath(p, 'resources');
 
         setFlatFolders(folders);
-        if (!selectedFolderId && folders.length > 0) setSelectedFolderId(folders[0].id);
+        // Nov 2026: por defecto, la carpeta del libro (lo más común es crear un capítulo), no la primera del canon.
+        if (!selectedFolderId && folders.length > 0) {
+            const book = [...folders].reverse().find(f => /libro|book|cap[ií]tulos/i.test(f.name))
+                || folders.find(f => /manuscrito|manuscript|borradores/i.test(f.name));
+            setSelectedFolderId((book || folders[0]).id);
+        }
         setIsLoadingFolders(false);
     };
 
@@ -105,13 +110,14 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                 content,
                 folderId: selectedFolderId,
                 accessToken,
+                plain: true, // Nov 2026: solo el texto, sin ficha de entidad
             });
             if (!data.success) throw new Error(data.message || 'Error desconocido');
-            toast.success('Archivo creado correctamente.');
+            toast.success(`«${fileName.trim()}» está listo.`);
             onFileCreated(data.fileId, content, fileName.trim());
             onClose();
         } catch (e: any) {
-            toast.error('Error al crear archivo: ' + e.message);
+            toast.error('No se pudo crear el archivo. ' + (e?.message || ''));
         } finally {
             setIsSubmitting(false);
         }
@@ -169,7 +175,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
             title={
                 <span className="flex items-center gap-2">
                     {itemType === 'file'
-                        ? <FilePlus size={18} className="text-cyan-400" />
+                        ? <FilePlus size={18} className="text-mira" />
                         : <FolderPlus size={18} className="text-amber-400" />
                     }
                     Crear nuevo
@@ -180,23 +186,21 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                     <button
                         onClick={onClose}
                         disabled={isSubmitting}
-                        className="px-4 py-2 text-sm text-titanium-400 hover:text-white hover:bg-titanium-700 rounded-lg transition-colors disabled:opacity-50"
+                        className="px-4 py-2 text-sm text-titanium-400 hover:text-titanium-100 hover:bg-titanium-700 rounded-lg transition-colors disabled:opacity-50"
                     >
                         Cancelar
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={!canSubmit || isSubmitting}
-                        className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 ${
-                            itemType === 'file'
-                                ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/20'
-                                : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20'
+                        className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 ${
+                            'bg-coral text-on-coral hover:brightness-110'
                         }`}
                     >
                         {isSubmitting
-                            ? <><Loader2 size={14} className="animate-spin" />Creando...</>
+                            ? <><Loader2 size={14} className="animate-spin" aria-hidden="true" />Creando…</>
                             : itemType === 'file'
-                                ? <><FilePlus size={14} />Crear Archivo</>
+                                ? <><FilePlus size={14} aria-hidden="true" />Crear documento</>
                                 : <><FolderPlus size={14} />Crear Carpeta</>
                         }
                     </button>
@@ -234,7 +238,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
             {itemType === 'file' ? (
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                        <label className="text-xs font-semibold text-titanium-400">
                             Nombre del archivo
                         </label>
                         <input
@@ -243,14 +247,13 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                             onChange={e => setFileName(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter' && canSubmit) handleSubmit(); }}
                             placeholder="Ej. Capítulo 1: El Inicio"
-                            className="w-full bg-titanium-950 border border-titanium-700 rounded-lg px-4 py-3 text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
+                            className="w-full bg-titanium-950 border border-titanium-700 rounded-lg px-4 py-3 text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:ring-2 focus-visible:ring-mira/40 transition-all"
                             autoFocus
                         />
-                        <p className="text-[10px] text-titanium-500">Se creará como archivo Markdown (.md)</p>
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                        <label className="text-xs font-semibold text-titanium-400">
                             Carpeta de destino
                         </label>
                         {isLoadingFolders ? (
@@ -267,7 +270,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                                         key={folder.id}
                                         type="button"
                                         onClick={() => setSelectedFolderId(folder.id)}
-                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[11px] transition-colors ${
+                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs transition-colors ${
                                             selectedFolderId === folder.id
                                                 ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
                                                 : 'text-titanium-400 hover:bg-titanium-800/60 hover:text-titanium-200 border border-transparent'
@@ -277,7 +280,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                                         <Folder size={11} className={`shrink-0 ${folder.section === 'canon' ? 'text-emerald-500' : 'text-blue-500'}`} />
                                         <span className="truncate flex-1">{folder.name}</span>
                                         {folder.depth === 0 && (
-                                            <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded shrink-0 ${
+                                            <span className={`text-xs font-bold px-1 py-0.5 rounded shrink-0 ${
                                                 folder.section === 'canon' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-blue-900/50 text-blue-400'
                                             }`}>
                                                 {folder.section === 'canon' ? 'C' : 'R'}
@@ -292,7 +295,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
             ) : (
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                        <label className="text-xs font-semibold text-titanium-400">
                             Nombre de la carpeta
                         </label>
                         <input
@@ -307,7 +310,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                        <label className="text-xs font-semibold text-titanium-400">
                             Sección
                         </label>
                         <div className="grid grid-cols-2 gap-2">
@@ -322,12 +325,12 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                                             : 'border-titanium-700 hover:border-titanium-500 bg-titanium-800/50'
                                     }`}
                                 >
-                                    <span className={`text-xs font-bold uppercase tracking-wider ${
+                                    <span className={`text-xs font-bold ${
                                         sectionType === s ? (s === 'canon' ? 'text-emerald-400' : 'text-blue-400') : 'text-titanium-400'
                                     }`}>
                                         {s === 'canon' ? 'CANON' : 'RESOURCES'}
                                     </span>
-                                    <span className="text-[10px] text-titanium-500 mt-0.5">
+                                    <span className="text-xs text-titanium-500 mt-0.5">
                                         {s === 'canon' ? 'Contenido oficial' : 'Referencias'}
                                     </span>
                                 </button>
@@ -336,7 +339,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                        <label className="text-xs font-semibold text-titanium-400">
                             Ubicación
                         </label>
                         <div className="flex flex-col gap-1 max-h-36 overflow-y-auto custom-scrollbar">
@@ -352,7 +355,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                                 <Folder size={12} className="shrink-0 text-titanium-400" />
                                 <div>
                                     <div className="font-semibold">Raíz del proyecto</div>
-                                    <div className="text-[9px] text-titanium-500">
+                                    <div className="text-xs text-titanium-500">
                                         Se añade a {sectionType === 'canon' ? 'CANON' : 'RESOURCES'} y aparece en configuración
                                     </div>
                                 </div>
@@ -374,7 +377,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                                 </button>
                             ))}
                             {sectionFolders.length === 0 && (
-                                <p className="text-[10px] text-titanium-500 italic text-center py-2">
+                                <p className="text-xs text-titanium-500 italic text-center py-2">
                                     Sin carpetas {sectionType === 'canon' ? 'CANON' : 'RESOURCES'}. Se creará en la raíz.
                                 </p>
                             )}

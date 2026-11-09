@@ -10,6 +10,7 @@ import { TitaniumGenesis } from "./services/genesis";
 import { getAIKey, getTier } from "./utils/security";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
+import { updateFirestoreTree } from "./utils/tree_utils";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { GoogleGenerativeAI, TaskType, SchemaType } from "./utils/genai";
 import { _getDriveFileContentInternal } from "./utils/drive";
@@ -110,7 +111,7 @@ export const forgeToolExecution = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
 
-    const { title, content, folderId, accessToken } = request.data;
+    const { title, content, folderId, accessToken, plain } = request.data;
     if (!title || !content || !folderId) {
       throw new HttpsError("invalid-argument", "Faltan argumentos (title, content, folderId).");
     }
@@ -124,6 +125,33 @@ export const forgeToolExecution = onCall(
     const userId = request.auth.uid;
 
     logger.info(`🔨 TOOL EXECUTION: Creating file '${title}' in ${folderId}`);
+
+    // Nov 2026: un capítulo o documento nuevo hecho por el autor («Nuevo» en tus documentos) es solo texto.
+    // Antes pasaba por la ficha de entidad: le ponía metadatos en inglés («Role: Tool Generated», «Traits: …»)
+    // y una entrada en el índice sin carpeta (aparecía repetido). Ahora se crea tal cual; se indexa al guardarlo.
+    if (plain) {
+      try {
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+        const drive = google.drive({ version: "v3", auth });
+        const fileName = /\.md$/i.test(String(title)) ? String(title) : `${title}.md`;
+        const file = await drive.files.create({
+          requestBody: { name: fileName, parents: [folderId], mimeType: "text/markdown" },
+          media: { mimeType: "text/markdown", body: String(content) },
+          fields: "id, name, webViewLink",
+        });
+        const newId = file.data.id;
+        if (!newId) throw new Error("Drive no devolvió el archivo.");
+        await updateFirestoreTree(userId, "add", newId, {
+          parentId: folderId,
+          newNode: { id: newId, name: fileName, mimeType: "text/markdown", driveId: newId, type: "file" },
+        });
+        return { success: true, fileId: newId, webViewLink: file.data.webViewLink, message: `Archivo '${title}' creado.` };
+      } catch (error: any) {
+        logger.error("Plain file creation failed:", error);
+        throw new HttpsError("internal", error?.message || "No se pudo crear el archivo.");
+      }
+    }
 
     try {
       const genesisResult = await TitaniumGenesis.birth({
@@ -214,7 +242,8 @@ export const saveDriveFile = onCall(
           const f: any = fSnap.data();
           const isAuthorMemory = /^memoria del autor\.md$/i.test(f.name || '');
           const last = f.lastIndexed ? new Date(f.lastIndexed).getTime() : 0;
-          if (isAuthorMemory || Date.now() - last > 10 * 60 * 1000) {
+          // Nov 2026: cada 3 min (antes 10): el Arquitecto no veía lo escrito hace un rato en un capítulo nuevo.
+          if (isAuthorMemory || Date.now() - last > 3 * 60 * 1000) {
             const embedder = new GeminiEmbedder({
               apiKey: getAIKey(request.data, googleApiKey.value()),
               model: "gemini-embedding-001",

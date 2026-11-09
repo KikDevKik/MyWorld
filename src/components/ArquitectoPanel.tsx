@@ -92,11 +92,13 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const openNames = reviewCount(namesState);
     useEffect(() => { if (openTool?.tool === 'names') setActiveTool('names'); }, [openTool?.nonce]);
     // Nov 2026: si ignoró el aviso, se lo recuerda una vez más justo antes de hablar con el Arquitecto.
+    // Si eligió «Hablar igual», no vuelve a preguntar hasta que aparezcan cosas nuevas por revisar
+    // (antes preguntaba en cada visita, y cansa).
     const [reviewGate, setReviewGate] = useState<null | (() => void)>(null);
     const ackKey = `mw-review-ack-${folderId}`;
     const guardReview = (run: () => void) => {
         let acked = false;
-        try { acked = sessionStorage.getItem(ackKey) === '1'; } catch { /* sin almacenamiento */ }
+        try { acked = Number(localStorage.getItem(ackKey) || 0) >= openNames; } catch { /* sin almacenamiento */ }
         if (openNames > 0 && !acked) setReviewGate(() => run);
         else run();
     };
@@ -1252,7 +1254,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 <ReviewGate
                     state={namesState}
                     onReview={() => { setReviewGate(null); setActiveTool('names'); }}
-                    onContinue={() => { try { sessionStorage.setItem(ackKey, '1'); } catch { /* sin almacenamiento */ } const run = reviewGate; setReviewGate(null); run(); }}
+                    onContinue={() => { try { localStorage.setItem(ackKey, String(openNames)); } catch { /* sin almacenamiento */ } const run = reviewGate; setReviewGate(null); run(); }}
                     onClose={() => setReviewGate(null)}
                 />
             )}

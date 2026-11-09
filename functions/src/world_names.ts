@@ -140,7 +140,7 @@ const folderOf = (f: CorpusFile) => {
 };
 
 // ── Extracción de términos (sin IA) ──
-const STOP = new Set(["El", "La", "Los", "Las", "Un", "Una", "Unos", "Unas", "Y", "O", "Pero", "Si", "No", "Sí", "En", "De", "Del", "Al", "A", "Con", "Por", "Para", "Que", "Qué", "Como", "Cómo", "Cuando", "Cuándo", "Donde", "Dónde", "Este", "Esta", "Estos", "Estas", "Ese", "Esa", "Eso", "Su", "Sus", "Lo", "Le", "Les", "Se", "Es", "Era", "Fue", "Hay", "Hace", "Ella", "Él", "Ellos", "Yo", "Tu", "Tú", "Mi", "Nos", "También", "Aun", "Aún", "Así", "Ya", "Sin", "Sobre", "Entre", "Desde", "Hasta", "Muy", "Más", "Todo", "Todos", "Cada", "Otro", "Otra", "Porque", "Entonces", "Luego", "Después", "Antes", "Ahora", "Además", "Incluso", "Mientras", "Aunque", "Bueno", "Obviamente", "Imagina", "Nota", "Ej", "Ejemplo", "Ver", "Fase", "Parte", "Capítulo", "The", "And", "Of"]);
+const STOP = new Set(["El", "La", "Los", "Las", "Un", "Una", "Unos", "Unas", "Y", "O", "Pero", "Si", "No", "Sí", "En", "De", "Del", "Al", "A", "Con", "Por", "Para", "Que", "Qué", "Como", "Cómo", "Cuando", "Cuándo", "Donde", "Dónde", "Este", "Esta", "Estos", "Estas", "Ese", "Esa", "Eso", "Su", "Sus", "Lo", "Le", "Les", "Se", "Es", "Era", "Fue", "Hay", "Hace", "Ella", "Él", "Ellos", "Yo", "Tu", "Tú", "Mi", "Nos", "También", "Aun", "Aún", "Así", "Ya", "Sin", "Sobre", "Entre", "Desde", "Hasta", "Muy", "Más", "Todo", "Todos", "Cada", "Otro", "Otra", "Porque", "Entonces", "Luego", "Después", "Antes", "Ahora", "Además", "Incluso", "Mientras", "Aunque", "Bueno", "Obviamente", "Imagina", "Nota", "Ej", "Ejemplo", "Ver", "Fase", "Parte", "Capítulo", "The", "And", "Of", "Role", "Traits", "Type", "Tags", "Status", "Rol", "Rasgos", "Tipo", "Estado"]);
 const LINK = new Set(["de", "del", "la", "las", "los", "el", "y"]);
 const TERM_RE = /(?<![\p{L}\p{N}])([A-ZÁÉÍÓÚÑ][\p{L}]{1,}(?:(?:-|\s(?:(?:de|del|de\s+la|de\s+las|de\s+los)\s)?)[A-ZÁÉÍÓÚÑ][\p{L}]{1,}){0,3})(?![\p{L}\p{N}])/gu;
 
@@ -160,7 +160,12 @@ function extractTerms(files: CorpusFile[]) {
         // El título del documento también es un nombre: «Fusione.md» explica lo que el texto llama «Anima Fusione».
         const title = baseName(f.name);
         if (title && title.split(/\s+/).length <= 4 && /^[A-ZÁÉÍÓÚÑ]/.test(title)) add(title, f.id, true);
-        const text = f.text.replace(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g, "$1");
+        // Nov 2026: sin metadatos (frontmatter y líneas «> **Role**: …», «> **Traits**: …» que MyWorld pone en las
+        // fichas): en un proyecto nuevo la revisión decía que «Role» y «Traits» eran lo mismo con dos nombres.
+        const text = f.text
+            .replace(/^---\n[\s\S]*?\n---\n?/, "")
+            .replace(/^>\s*\*\*[^*\n]{1,30}\*\*\s*:?.*$/gm, "")
+            .replace(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g, "$1");
         for (const m of text.matchAll(TERM_RE)) {
             let term = m[1];
             const words = term.split(/\s+/);
@@ -176,7 +181,7 @@ function extractTerms(files: CorpusFile[]) {
         }
         for (const m of text.matchAll(/\*\*([^*\n]{3,40})\*\*/g)) {
             const t = m[1].trim().replace(/[:.,;]+$/, "");
-            if (/^[A-ZÁÉÍÓÚÑ]/.test(t) && t.split(/\s+/).length <= 4) add(t, f.id);
+            if (/^[A-ZÁÉÍÓÚÑ]/.test(t) && t.split(/\s+/).length <= 4 && !STOP.has(t)) add(t, f.id);
         }
     }
     return stats;

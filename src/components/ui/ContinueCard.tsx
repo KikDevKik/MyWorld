@@ -19,6 +19,7 @@ interface ContinueCardProps {
     onGoToDirector: () => void;
     onContinue?: (doc: LastDoc) => void;
     onAskMira?: (message: string) => void;
+    onNewChapter?: () => void; // Nov 2026: proyecto nuevo: el primer paso es escribir
 }
 
 const STR = {
@@ -73,7 +74,7 @@ function since(at: number, es: boolean): string {
 
 const PLAN_SNOOZE = 'mw-plan-snooze';
 
-export default function ContinueCard({ projectName, folderId, sessionId, onGoToArquitecto, onGoToDirector, onContinue, onAskMira }: ContinueCardProps) {
+export default function ContinueCard({ projectName, folderId, sessionId, onGoToArquitecto, onGoToDirector, onContinue, onAskMira, onNewChapter }: ContinueCardProps) {
     const { currentLanguage } = useLanguageStore();
     const es = currentLanguage === 'es';
     const s = es ? STR.es : STR.en;
@@ -114,7 +115,7 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
         ? (next
             ? (es ? `La última vez escribiste en «${last.name}», ${since(last.at, true)}. Te dejo lo que sigue para retomar.` : `Last time you wrote in "${last.name}", ${since(last.at, false)}. Here’s what’s next so you can pick it up.`)
             : (es ? `La última vez escribiste en «${last.name}», ${since(last.at, true)}. Todavía no tenemos un plan, así que no sé con certeza qué sigue.` : `Last time you wrote in "${last.name}", ${since(last.at, false)}. We don’t have a plan yet, so I can’t be sure what’s next.`))
-        : (es ? 'Todavía no sé dónde lo dejaste. Abre un capítulo y, la próxima vez que entres, te lo digo aquí.' : 'I don’t know where you left off yet. Open a chapter, and next time you come in I’ll tell you here.');
+        : (es ? 'Abre un capítulo de tus documentos o empieza uno nuevo. Cuando vuelvas, te digo dónde lo dejaste.' : 'Open a chapter from your documents or start a new one. When you come back, I’ll tell you where you left off.');
 
     return (
         <div className="flex-1 overflow-y-auto bg-titanium-950 p-6 md:p-10">
@@ -150,7 +151,7 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
                             <div className="text-[15px] text-titanium-100 mt-0.5">{next.text}</div>
                         </div>
                     )}
-                    {!hasPlan && !snoozed && (
+                    {last && !hasPlan && !snoozed && (
                         <div className="rounded-xl bg-titanium-900/70 border border-dashed border-mira/50 px-4 py-3 text-sm text-titanium-200 leading-relaxed">
                             {es
                                 ? 'Sin plan también se escribe, pero es fácil perder el rumbo. Si le cuentas a la mesa del arquitecto hacia dónde va tu historia (aunque cambie después), la próxima vez te digo qué sigue.'
@@ -162,6 +163,11 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
                         </div>
                     )}
                     <div className="flex flex-wrap items-center gap-3 pt-1">
+                        {!last && onNewChapter && (
+                            <button type="button" onClick={onNewChapter} className="inline-flex items-center gap-2 rounded-xl bg-coral text-on-coral px-5 py-2.5 text-sm font-semibold hover:brightness-110 transition">
+                                <PenLine size={16} aria-hidden="true" /> {es ? 'Empezar un capítulo nuevo' : 'Start a new chapter'}
+                            </button>
+                        )}
                         {last && onContinue && (
                             <button type="button" onClick={() => onContinue(last)} className="inline-flex items-center gap-2 rounded-xl bg-coral text-on-coral px-5 py-2.5 text-sm font-semibold hover:brightness-110 transition">
                                 <PenLine size={16} /> {es ? 'Continuar donde lo dejaste' : 'Continue where you left off'}

@@ -99,7 +99,7 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
             )}
             {(level === 'myworld' || (level === 'propia' && hasAnthropicKey)) && (
                 <div className="mt-3 flex items-center gap-2 text-[12px]">
-                    <span className="text-titanium-400">Director y Arquitecto:</span>
+                    <span className="text-titanium-400">Mira y el Arquitecto:</span>
                     {([
                         { v: 'calidad', label: 'Calidad (Sonnet)', hint: '≈ US$ 0,02–0,04 por mensaje' },
                         { v: 'economico', label: 'Económico (Haiku)', hint: '≈ US$ 0,002 por mensaje' },

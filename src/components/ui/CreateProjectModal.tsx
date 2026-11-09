@@ -41,7 +41,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
             className="max-w-md"
             title={
                 <span className="flex items-center gap-2">
-                    <Sparkles className="text-cyan-500" size={18} />
+                    <Sparkles className="text-mira" size={18} />
                     {t.modalTitle}
                 </span>
             }
@@ -59,7 +59,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
                         type="submit"
                         form="create-project-form"
                         disabled={!projectName.trim() || isLoading}
-                        className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white text-sm font-bold rounded-lg shadow-lg shadow-cyan-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                        className="flex items-center gap-2 px-5 py-2 bg-coral text-on-coral hover:brightness-110 text-sm font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? (
                             <>
@@ -75,7 +75,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
         >
             <form id="create-project-form" onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                    <label htmlFor="projectName" className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                    <label htmlFor="projectName" className="text-xs font-semibold text-titanium-400">
                         {t.projectName}
                     </label>
                     <input
@@ -84,11 +84,11 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
                         value={projectName}
                         onChange={(e) => setProjectName(e.target.value)}
                         placeholder={t.placeholder}
-                        className="w-full px-4 py-3 bg-titanium-950 border border-titanium-700 rounded-lg text-titanium-100 placeholder-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all"
+                        className="w-full px-4 py-3 bg-titanium-950 border border-titanium-700 rounded-lg text-titanium-100 placeholder-titanium-600 focus:outline-none focus:ring-2 focus-visible:ring-mira/40 focus:border-mira/70 transition-all"
                         autoFocus
                         disabled={isLoading}
                     />
-                    <p className="text-[11px] text-titanium-500 leading-relaxed">
+                    <p className="text-xs text-titanium-500 leading-relaxed">
                         {t.description}
                     </p>
                 </div>

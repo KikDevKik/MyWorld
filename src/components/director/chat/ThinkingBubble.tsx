@@ -30,7 +30,7 @@ export const ThinkingBubble: React.FC<ThinkingBubbleProps> = ({ thought }) => {
                 </div>
 
                 <span className="flex-1 truncate opacity-90 group-hover:opacity-100">
-                    {isOpen ? 'Pensamiento del Director' : 'Analizando contexto...'}
+                    {isOpen ? 'Cómo lo pensó Mira' : 'Ver cómo lo pensó'}
                 </span>
 
                 {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}

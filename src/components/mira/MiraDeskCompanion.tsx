@@ -88,7 +88,13 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
     useEffect(() => {
         if (!fileId || !prefs.ritual) return;
         const k = 'mw-ritual-' + localDayKey();
-        try { if (!localStorage.getItem(k)) { setRitual(true); localStorage.setItem(k, '1'); } } catch { /* */ }
+        try {
+            // Nov 2026: el primer día no (ya hay bastante que descubrir) y en el celular tampoco (tapaba todo el editor).
+            const first = localStorage.getItem('mw-first-day');
+            if (!first) { localStorage.setItem('mw-first-day', localDayKey()); return; }
+            if (first === localDayKey() || window.matchMedia?.('(max-width: 639px)').matches) return;
+            if (!localStorage.getItem(k)) { setRitual(true); localStorage.setItem(k, '1'); }
+        } catch { /* */ }
     }, [fileId, prefs.ritual]);
 
     // Llegada: una vez al día por archivo, cuando ya no está el ritual, Mira repasa lo pendiente.

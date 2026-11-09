@@ -2674,7 +2674,6 @@ export const arquitectoCerrarSesion = onCall(
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
         const { sessionId, accessToken } = request.data || {};
         if (!sessionId) throw new HttpsError("invalid-argument", "Falta sessionId.");
-        if (!connectAvailable()) throw new HttpsError("failed-precondition", "El resumen de sesión usa Claude y todavía no está activo para tu cuenta.");
         const uid = request.auth.uid;
         // Nov 2026: si lo último ya es el resumen (p. ej. el autor resumió y luego empezó otra), no se repite.
         const sref0 = getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId);
@@ -2684,7 +2683,7 @@ export const arquitectoCerrarSesion = onCall(
             const prev: any = (await sref0.get()).data() || {};
             return { summary: prev.closingSummary || '', savedAs: null, skipped: true };
         }
-        const { summary, savedAs } = await conectarClose(uid, sessionId, accessToken);
+        const { summary, savedAs } = await conectarClose(uid, sessionId, accessToken, getAIKey(request.data, googleApiKey.value()));
         const text = summary + (savedAs ? `\n\n_Guardé este resumen en ${savedAs} (también lo ves en Obsidian)._` : '');
         const sref = getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId);
         await sref.collection("messages").add({ role: 'ia', text, timestamp: new Date(), arquitectoMode: 'cierre' });
