@@ -18,6 +18,18 @@ function Paso($nombre, [scriptblock]$accion) {
     & $accion
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { Write-Host "XX Falló: $nombre (código $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
 }
+# Nov 2026: Google a veces corta la conexión a mitad del deploy («socket hang up», «ECONNRESET»):
+# no es un error del código. Se reintenta una vez; Firebase salta las funciones que ya quedaron publicadas.
+function PasoConReintento($nombre, [scriptblock]$accion) {
+    Write-Host "`n==> $nombre" -ForegroundColor Cyan
+    & $accion
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-Host "!! Falló, reintento una vez (suele ser la conexión con Google)..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 20
+        & $accion
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { Write-Host "XX Falló: $nombre (código $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+    }
+}
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
 Paso 'Guardar cambios en git' {
@@ -31,14 +43,14 @@ if ($Solo -ne 'web') {
     Paso 'Compilar el servidor' { Push-Location functions; npm run build; Pop-Location }
     if ($Funciones.Count -gt 0) {
         $lista = ($Funciones | ForEach-Object { "functions:$_" }) -join ','
-        Paso "Publicar funciones: $($Funciones -join ', ')" { firebase deploy --only $lista }
+        PasoConReintento "Publicar funciones: $($Funciones -join ', ')" { firebase deploy --only $lista }
     } else {
-        Paso 'Publicar el servidor (todas las funciones, ~5 min)' { firebase deploy --only functions }
+        PasoConReintento 'Publicar el servidor (todas las funciones, ~5 min)' { firebase deploy --only functions }
     }
 }
 if ($Solo -ne 'funciones') {
     Paso 'Compilar la web' { npm run build }
-    Paso 'Publicar la web' { firebase deploy --only hosting }
+    PasoConReintento 'Publicar la web' { firebase deploy --only hosting }
 }
 # Nov 2026: las reglas de Firestore no se publicaban nunca (permisos de plan, user_state, craft…).
 if ($Solo -ne 'funciones') {
