@@ -1817,7 +1817,7 @@ function App() {
             prompt: 'consent', // 👈 FORCE REFRESH TOKEN GENERATION
             callback: async (response: any) => {
                 if (response.code) {
-                    const toastId = toast.loading("Vinculando Drive permanentemente...");
+                    const toastId = toast.loading("Conectando tu Drive…");
                     try {
                         const data = await callFunction<{ success: boolean; accessToken: string }>('exchangeAuthCode', { code: response.code });
 
@@ -1825,13 +1825,13 @@ function App() {
                             setOauthToken(data.accessToken);
                             setDriveStatus('connected');
                             toast.dismiss(toastId);
-                            toast.success("¡Drive Vinculado Permanentemente!");
+                            toast.success("Tu Drive quedó conectado", { description: "MyWorld solo ve las carpetas de tu proyecto. Puedes desconectarlo cuando quieras desde tu cuenta de Google." });
                         } else {
                             throw new Error("Respuesta inválida del servidor");
                         }
                     } catch (e: any) {
                         toast.dismiss(toastId);
-                        toast.error("Error vinculando Drive: " + e.message);
+                        toast.error("No se pudo conectar tu Drive. Intenta de nuevo.", { description: e.message });
                         setDriveStatus('error');
                     }
                 }

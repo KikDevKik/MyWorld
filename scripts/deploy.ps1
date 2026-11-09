@@ -41,7 +41,7 @@ if ($Solo -ne 'funciones') {
     Paso 'Publicar la web' { firebase deploy --only hosting }
 }
 # Nov 2026: las reglas de Firestore no se publicaban nunca (permisos de plan, user_state, craft…).
-if ($Solo -eq 'todo') {
+if ($Solo -ne 'funciones') {
     Paso 'Publicar las reglas de Firestore' { firebase deploy --only firestore:rules }
 }
 $min = [math]::Round(((Get-Date) - $inicio).TotalMinutes, 1)
