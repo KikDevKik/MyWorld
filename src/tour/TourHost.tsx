@@ -109,8 +109,11 @@ export default function TourHost() {
                     <div className="mt-3 overflow-hidden rounded-lg border border-titanium-800 bg-titanium-950 aspect-[16/10]">
                         {reduceMotion()
                             ? <img src={`/tour/${tip.clip}.jpg`} alt="" className="w-full h-full object-cover" onError={() => setClipOk(false)} />
-                            : <video src={`/tour/${tip.clip}.webm`} poster={`/tour/${tip.clip}.jpg`} autoPlay muted loop playsInline aria-hidden="true"
-                                className="w-full h-full object-cover" onError={() => setClipOk(false)} />}
+                            : <video poster={`/tour/${tip.clip}.jpg`} autoPlay muted loop playsInline aria-hidden="true" className="w-full h-full object-cover">
+                                {/* mp4 para Safari del iPhone; webm para el resto. Si ninguno carga, se oculta el clip. */}
+                                <source src={`/tour/${tip.clip}.mp4`} type="video/mp4" />
+                                <source src={`/tour/${tip.clip}.webm`} type="video/webm" onError={() => setClipOk(false)} />
+                            </video>}
                     </div>
                 )}
                 <div className="mt-3 flex items-center gap-2">
