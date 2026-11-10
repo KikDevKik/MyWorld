@@ -2,6 +2,7 @@
 // Pide a Claude un reporte del capítulo abierto; cada punto trae la cita exacta para ubicarlo
 // ("Ir"), la ortografía se puede corregir con un clic y los puntos se marcan como hechos.
 import React, { useEffect, useMemo, useState } from 'react';
+import { requestTip } from '../../tour/tourStore';
 import { MiraSprite } from '../mira/MiraSprite';
 import { X, FileSearch, Loader2, LocateFixed, Check, RefreshCw, BookOpen, Sparkles, AlertTriangle, SpellCheck, ShieldCheck, Users, HelpCircle, MessageSquareQuote, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -182,6 +183,8 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
     const [lectorOpen, setLectorOpen] = useState(false);
     const [savingLector, setSavingLector] = useState(false);
     const doneKey = `myworld_report_done_${fileId}`;
+    // Nov 2026: tutorial progresivo: la primera vez que entras al estudio.
+    useEffect(() => { requestTip('estudio.reporte'); }, []);
     const [done, setDone] = useState<Record<string, boolean>>(() => {
         try { return JSON.parse(localStorage.getItem(doneKey) || '{}'); } catch { return {}; }
     });
@@ -501,7 +504,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                         <MiraSprite pose="leyendo" className="mx-auto" />
                         <p className="text-titanium-300">Cuando termines un capítulo, pide un reporte: qué funciona, qué corregir y dónde está cada cosa en tu texto, ortografía con corrección de un clic y lecturas apoyadas en tus referencias. Debajo puedes pedir también la revisión del canon y las tres lecturas.</p>
                         {showCosts() && <p className="text-titanium-600">Usa Claude · cuesta alrededor de US$0,10 por reporte.</p>}
-                        <button onClick={generate} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-coral hover:brightness-110 px-4 py-2 text-xs font-semibold text-on-coral">
+                        <button data-tour="reporte-generar" onClick={generate} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-coral hover:brightness-110 px-4 py-2 text-xs font-semibold text-on-coral">
                             <Sparkles size={13} /> Generar reporte
                         </button>
                         <div className="pt-4 space-y-3 text-left">

@@ -80,6 +80,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                             aria-expanded={vaultDrawerOpen}
                             aria-controls="vault-drawer"
                             className={`group relative flex items-center justify-center ${btnSize} rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-mira focus-visible:outline-none active:scale-95 ${vaultDrawerOpen ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-300 hover:text-titanium-100 hover:bg-titanium-900'}`}
+                            data-tour="dock-archivos"
                             title={es ? 'Tus documentos' : 'Your documents'}
                             aria-label={es ? 'Tus documentos' : 'Your documents'}
                         >
@@ -124,6 +125,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                     <button
                         onClick={onOpenReport}
                         className={`group relative flex items-center justify-center ${btnSize} rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none active:scale-95 ${reportActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
+                        data-tour="dock-estudio"
                         title={es ? 'El estudio: reporte del capítulo (canon y tres lecturas)' : 'The study: chapter report'}
                         aria-label={es ? 'El estudio' : 'The study'}
                     >

@@ -410,7 +410,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const status = getStatusConfig();
 
     return (
-        <div className="w-full h-full bg-titanium-900 flex flex-col z-20 select-none">
+        <div data-tour="docs" className="w-full h-full bg-titanium-900 flex flex-col z-20 select-none">
 
             {/* HEADER / SAGA SELECTOR */}
             <div className="px-4 py-4 border-b border-titanium-800 bg-titanium-900/50">

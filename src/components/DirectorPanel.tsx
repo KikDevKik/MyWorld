@@ -21,6 +21,7 @@ import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
 import { MiraSprite } from './mira/MiraSprite';
 import { withNewVersionReload } from '../utils/lazyView';
+import { requestTip } from '../tour/tourStore';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -97,6 +98,8 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     });
 
     const [showWelcome, dismissWelcome] = useToolWelcome('director', folderId);
+    // Nov 2026: tutorial progresivo: la primera vez que abres a Mira te explico cómo preguntarme.
+    useEffect(() => { requestTip('mira.chat'); }, []);
 
     // Nov 2026: lo que dice Mira se guarda como nota en Recursos, nunca dentro del manuscrito.
     // (Antes «Llevar al capítulo» lo reescribía con IA y lo pegaba en el capítulo: la voz tiene que ser del autor.)
@@ -393,7 +396,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         <div ref={messagesEndRef} />
                     </div>
 
-                    <div className={`pt-3 sm:pt-4 px-3 sm:px-4 ${variant === 'dialog' ? 'pb-3 sm:pb-4' : 'pb-10'} shrink-0 bg-titanium-950/95 backdrop-blur-xl border-t border-titanium-800`}>
+                    <div data-tour="mira-input" className={`pt-3 sm:pt-4 px-3 sm:px-4 ${variant === 'dialog' ? 'pb-3 sm:pb-4' : 'pb-10'} shrink-0 bg-titanium-950/95 backdrop-blur-xl border-t border-titanium-800`}>
                         <ChatInput
                             onSend={(text, attachment) => {
                                 handleSendMessage(text, attachment || undefined);

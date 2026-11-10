@@ -213,7 +213,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
         <div className="h-full w-full flex overflow-hidden bg-titanium-950">
             {/* Lista */}
             <aside className={`${narrow ? (cur ? 'hidden' : 'w-full') : 'w-80 shrink-0 border-r border-titanium-800'} flex flex-col`}>
-                <div className="p-4 border-b border-titanium-800 space-y-3">
+                <div data-tour="personajes-lista" className="p-4 border-b border-titanium-800 space-y-3">
                     <div className="flex items-center gap-2">
                         <Users size={15} className="text-mira" />
                         <p className="flex-1 text-sm font-medium text-titanium-100">Tus personajes</p>

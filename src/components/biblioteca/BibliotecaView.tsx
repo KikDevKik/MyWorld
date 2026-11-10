@@ -11,8 +11,10 @@ import { callFunction } from '../../services/api';
 import { LESSONS, Lesson } from './lessons';
 import ParaTi, { toLesson } from './ParaTi';
 import { useCraftFocus, OPEN_BIBLIOTECA_EVENT } from '../../hooks/useCraft';
+import { requestTip, useTourStore, discoveredCount } from '../../tour/tourStore';
+import ConoceTuCasa from '../../tour/ConoceTuCasa';
 
-type Tab = 'parati' | 'decisiones' | 'practicar' | 'aprender';
+type Tab = 'parati' | 'decisiones' | 'practicar' | 'aprender' | 'casa';
 interface Exercise { topic: string; voz?: string; titulo: string; consigna: string; objetivo: string; palabras: number; pista: string }
 interface Feedback { resumen: string; funciona: { cita: string; porque: string }[]; mejorar: { cita: string; que: string }[]; siguiente: string }
 interface Practice { id: string; exercise: Exercise; text: string; feedback: Feedback; at: string; words: number }
@@ -211,14 +213,19 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
         ? 'Lo que vamos notando al conversar. Poco a poco, sin prisa.'
         : tab === 'decisiones'
         ? 'Antes de escribir, decidamos quién cuenta tu historia. Si dudas, pregúntame.'
+        : tab === 'casa' ? 'Cada cuarto tiene algo mío. Pídeme que te lo muestre cuando quieras.'
         : tab === 'practicar' ? 'Sin presión: esto no entra a tu libro. Es para soltar la mano.'
             : 'Lecciones cortas. Cuando una te sirva, practícala.', [tab]);
 
+    // Nov 2026: «Conoce tu casa» (tutorial progresivo) vive aquí.
+    const casaN = discoveredCount(useTourStore(s => s.seen));
+    useEffect(() => { requestTip('biblioteca.intro'); }, []);
     const TABS: { id: Tab; label: string }[] = [
         { id: 'parati', label: focos.length ? `Para ti · ${focos.length}` : 'Para ti' },
         { id: 'practicar', label: 'Practicar' },
         { id: 'aprender', label: 'Aprender' },
         { id: 'decisiones', label: 'Decisiones del libro' },
+        { id: 'casa', label: `Conoce tu casa · ${casaN}/9` },
     ];
 
     return (
@@ -233,7 +240,7 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
 
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar">
                 <div className="max-w-[820px] mx-auto px-4 sm:px-6 pt-5 pb-40 flex flex-col gap-6">
-                    <div role="tablist" aria-label="Partes de la biblioteca" className="flex gap-1 border-b border-titanium-800 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
+                    <div role="tablist" data-tour="biblioteca-tabs" aria-label="Partes de la biblioteca" className="flex gap-1 border-b border-titanium-800 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
                         {TABS.map(t => (
                             <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
                                 className={`shrink-0 px-3 py-2 -mb-px text-sm border-b-2 transition-colors ${tab === t.id ? 'border-mira text-titanium-50' : 'border-transparent text-titanium-400 hover:text-titanium-100'}`}>
@@ -241,6 +248,8 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
                             </button>
                         ))}
                     </div>
+
+                    {tab === 'casa' && <ConoceTuCasa />}
 
                     {/* ── Para ti ── */}
                     {tab === 'parati' && (

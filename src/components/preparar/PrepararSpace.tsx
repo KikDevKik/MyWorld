@@ -7,6 +7,7 @@ import { DraftingCompass, Network, Users, Lightbulb } from 'lucide-react';
 
 import { type PrepararTab, PREPARAR_TAB_KEY } from './tabs';
 import RoomMira from '../mira/RoomMira';
+import { requestTip } from '../../tour/tourStore';
 import type { MiraPose } from '../mira/MiraSprite';
 
 // Nov 2026: Mira cambia de lugar según el cuarto. En la mesa y el fichero ya vive dentro de la vista
@@ -41,6 +42,8 @@ export default function PrepararSpace({ views, tab, onTabChange }: Props) {
     useEffect(() => {
         setVisited(v => (v.has(tab) ? v : new Set(v).add(tab)));
         try { localStorage.setItem(KEY, tab); } catch { /* sin almacenamiento */ }
+        // Nov 2026: tutorial progresivo: cada pestaña se explica la primera vez que entras a ella.
+        requestTip(({ conversacion: 'mesa.conversacion', mapa: 'mesa.mapa', personajes: 'mesa.personajes', quepasa: 'mesa.ideas' } as Record<string, string>)[tab] || '');
     }, [tab]);
     const setTab = onTabChange;
     const current = TABS.find(t => t.id === tab)!;
@@ -53,6 +56,7 @@ export default function PrepararSpace({ views, tab, onTabChange }: Props) {
                     <button
                         key={t.id}
                         role="tab"
+                        data-tour={`tab-${t.id}`}
                         aria-selected={tab === t.id}
                         onClick={() => setTab(t.id)}
                         className={`shrink-0 inline-flex min-h-[40px] items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60 ${tab === t.id

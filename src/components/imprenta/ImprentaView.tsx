@@ -10,6 +10,8 @@ import { callFunction } from '../../services/api';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { getAuth } from 'firebase/auth';
 import { CreativeAuditService } from '../../services/CreativeAuditService';
+import { requestTip } from '../../tour/tourStore';
+import { getLocalizedFolderName } from '../../utils/folderLocalization';
 import { DEFAULT_DESIGN, Design, FONTS, PAGES, TEMPLATES, BookMeta, toChapters, bookHtml, buildEpub, buildDocx, PageSize } from '../../utils/imprenta/build';
 
 interface Node { id: string; name: string; mimeType: string; children?: Node[] }
@@ -36,7 +38,7 @@ const TreeItem: React.FC<{ node: Node; depth: number; sel: Set<string>; toggle: 
                 <span className="w-3.5 text-titanium-500">{folder ? (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}</span>
                 <input type="checkbox" checked={all} ref={el => { if (el) el.indeterminate = some; }} onClick={e => e.stopPropagation()} onChange={() => toggle(ids, !all)} className="accent-[var(--color-coral)]" aria-label={`Incluir «${node.name.replace(/\.md$/i, '')}»`} />
                 {folder ? <Folder size={12} className="text-titanium-500" /> : <FileText size={12} className="text-titanium-600" />}
-                <span className="truncate text-[12px] text-titanium-200">{node.name.replace(/\.md$/i, '')}</span>
+                <span className="truncate text-[12px] text-titanium-200">{folder ? getLocalizedFolderName(node.name, 'es' as any) : node.name.replace(/\.md$/i, '')}</span>
             </div>
             {folder && open && (node.children || []).map(c => <TreeItem key={c.id} node={c} depth={depth + 1} sel={sel} toggle={toggle} />)}
         </div>
@@ -120,6 +122,8 @@ function AutoriaDialog({ folderId, title, onClose }: { folderId: string; title: 
 }
 
 export default function ImprentaView({ folderId, accessToken, onClose }: Props) {
+    // Nov 2026: tutorial progresivo: la primera vez que entras a la imprenta.
+    useEffect(() => { requestTip('imprenta.intro'); }, []);
     const narrow = useIsNarrow();
     const [autoriaOpen, setAutoriaOpen] = useState(false);
     const { config, fileTree } = useProjectConfig();
@@ -272,7 +276,7 @@ export default function ImprentaView({ folderId, accessToken, onClose }: Props) 
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                     <button onClick={() => setAutoriaOpen(true)} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-titanium-400 hover:bg-titanium-800 hover:text-titanium-100" title="Registro y certificado de autoría"><Award size={13} aria-hidden="true" /> Autoría</button>
-                    {!narrow && exportButtons}
+                    {!narrow && <div data-tour="imprenta-export" className="flex items-center gap-2">{exportButtons}</div>}
                 </div>
             </header>
 
@@ -368,7 +372,7 @@ export default function ImprentaView({ folderId, accessToken, onClose }: Props) 
             </div>
             {/* Nov 2026: en el celular, exportar queda abajo y siempre a mano (antes los botones quedaban fuera de la pantalla). */}
             {narrow && (
-                <div className="shrink-0 grid grid-cols-3 gap-2 border-t border-titanium-800 bg-titanium-950 px-3 py-2.5" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
+                <div data-tour="imprenta-export" className="shrink-0 grid grid-cols-3 gap-2 border-t border-titanium-800 bg-titanium-950 px-3 py-2.5" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
                     {exportButtons}
                 </div>
             )}

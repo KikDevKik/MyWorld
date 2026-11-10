@@ -164,7 +164,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                         <Search size={12} className="text-titanium-600" />
                         <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchHit()} placeholder="Buscar…" className="w-32 bg-transparent py-1 text-[12px] text-titanium-200 outline-none" />
                     </div>
-                    <button onClick={suggest} disabled={!!busy || !nodes.length} className="inline-flex items-center gap-1.5 rounded-md bg-mira/15 hover:bg-mira/25 border border-mira/30 px-2.5 py-1 text-[12px] text-titanium-50 disabled:opacity-40" title={`El Arquitecto propone 5 conexiones posibles entre piezas sueltas${costSuffix('~US$0,03', ' · ')}`}>
+                    <button data-tour="mapa-sugerir" onClick={suggest} disabled={!!busy || !nodes.length} className="inline-flex items-center gap-1.5 rounded-md bg-mira/15 hover:bg-mira/25 border border-mira/30 px-2.5 py-1 text-[12px] text-titanium-50 disabled:opacity-40" title={`El Arquitecto propone 5 conexiones posibles entre piezas sueltas${costSuffix('~US$0,03', ' · ')}`}>
                         {busy === 'suggest' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Sugerir conexiones
                     </button>
                     <button onClick={scan} disabled={!!busy} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-2.5 py-1 text-[11px] text-titanium-100 disabled:opacity-50" title={`Lee tu canon y dibuja el mapa${costSuffix('~US$0,03', ' · ')}`}>

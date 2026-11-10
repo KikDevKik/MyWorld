@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { requestTip } from '../../tour/tourStore';
 import { Settings, Clock, Type, RefreshCw, ScanEye, Loader2, Pause, Square, Target, X, Check, Zap, Leaf, FileSearch } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTier } from '../../hooks/useTier';
@@ -131,6 +132,10 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
         }
 
     }, [content, fileId]);
+
+    // Nov 2026: tutorial progresivo. La meta se explica cuando ya escribiste algo hoy; el estudio, cuando el capítulo tiene cuerpo.
+    useEffect(() => { if (fileId && dailyProgress >= 100) requestTip('escritorio.meta'); }, [fileId, dailyProgress >= 100]);
+    useEffect(() => { if (fileId && wordCount >= 800) requestTip('estudio.sugerencia'); }, [fileId, wordCount >= 800]);
 
     const handleGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value);
@@ -388,6 +393,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                     <span
                         role="status"
                         aria-live="polite"
+                        data-tour="save"
                         className={`flex items-center gap-1 px-1 whitespace-nowrap ${saveState === 'error' || saveState === 'conflict' ? 'text-red-300' : 'text-titanium-400'}`}
                         title={saveState === 'saved' ? 'Todo lo que escribiste está guardado en tu Drive.' : saveState === 'error' ? 'No se pudo guardar. Se vuelve a intentar al seguir escribiendo; no cierres la pestaña.' : saveState === 'conflict' ? 'El archivo cambió en Drive. Elige con qué versión te quedas.' : 'Guardando en tu Drive…'}
                     >
@@ -472,7 +478,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                     </>
                 )}
 
-                <div className="flex flex-col w-16 sm:w-32 gap-1">
+                <div data-tour="meta" className="flex flex-col w-16 sm:w-32 gap-1">
                     <div className="flex justify-between gap-2 text-[11px] font-medium">
                         <span className={`hidden sm:inline ${dailyProgress >= dailyGoal ? "text-logro" : "text-titanium-400"}`}>
                             {dailyProgress >= dailyGoal ? t.goalMet : t.dailyGoal}
@@ -489,7 +495,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                         title={`${t.dailyGoal}: ${Math.round(progressPercentage)}%. Cuenta lo que escribes aquí; un bloque pegado de golpe (más de 50 palabras) no suma.`}
                     >
                         <div
-                            className={`h-full transition-all duration-500 ${dailyProgress >= dailyGoal ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-blue-500'}`}
+                            className={`h-full transition-all duration-500 ${dailyProgress >= dailyGoal ? 'bg-logro' : 'bg-mira'}`}
                             style={{ width: `${progressPercentage}%` }}
                         />
                     </div>

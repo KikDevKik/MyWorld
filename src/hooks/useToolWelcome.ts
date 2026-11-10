@@ -22,5 +22,7 @@ export function useToolWelcome(toolKey: string, _folderId?: string): [boolean, (
         setDismissed(true);
     }, [storageKey]);
 
-    return [!dismissed, dismiss];
+    // Nov 2026: los carteles de bienvenida los reemplaza el tutorial progresivo (src/tour): ya no salen solos.
+    void dismissed;
+    return [false, dismiss];
 }

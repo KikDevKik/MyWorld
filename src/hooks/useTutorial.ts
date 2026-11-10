@@ -171,8 +171,10 @@ export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading, isEm
 
     }, [user, isAppLoading, isEmptyProject, currentLanguage]);
 
-    // 🟢 AUTO-START EFFECT
+    // Nov 2026: el recorrido viejo (rutas, «segundo cerebro», «God Mode») ya no arranca solo:
+    // lo reemplaza el tutorial progresivo de Mira (src/tour). Queda startTutorial por compatibilidad.
     useEffect(() => {
+        if (true) return;
         if (!user || isAppLoading) return;
 
         const hasSeenTutorial = localStorage.getItem('has_seen_intro_tutorial_v1');

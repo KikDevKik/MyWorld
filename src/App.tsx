@@ -31,6 +31,10 @@ import { DriftMarker } from './editor/extensions/driftPlugin';
 import ChatPanel from './components/ChatPanel';
 import ArsenalDock from './components/forge/ArsenalDock';
 import LoginScreen from './pages/LoginScreen';
+import TourHost from './tour/TourHost';
+import { TOUR_GOTO_EVENT } from './tour/ConoceTuCasa';
+import { requestTip } from './tour/tourStore';
+import type { RoomId } from './tour/tips';
 import ConnectDriveModal from './components/ui/ConnectDriveModal';
 import SettingsModal from './components/ui/SettingsModal';
 import FieldManualModal from './components/ui/FieldManualModal';
@@ -683,6 +687,30 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         window.addEventListener(OPEN_BIBLIOTECA_EVENT, on);
         return () => window.removeEventListener(OPEN_BIBLIOTECA_EVENT, on);
     }, []);
+    // Nov 2026: tutorial progresivo. «Muéstrame» en «Conoce tu casa» lleva a cada cuarto.
+    useEffect(() => {
+        const go = (e: Event) => {
+            const room = (e as CustomEvent).detail?.room as RoomId;
+            setVaultDrawerOpen(false);
+            if (room === 'escritorio') { setIsReportOpen(false); setActiveView('editor'); }
+            else if (room === 'mira') setActiveView('director');
+            else if (room === 'mesa' || room === 'observatorio' || room === 'fichero' || room === 'frasco') {
+                setPrepararTab(room === 'mesa' ? 'conversacion' : room === 'observatorio' ? 'mapa' : room === 'fichero' ? 'personajes' : 'quepasa');
+                setActiveView('arquitecto');
+            }
+            else if (room === 'estudio') { setActiveView('editor'); setIsReportOpen(true); }
+            else if (room === 'biblioteca') setActiveView('biblioteca');
+            else if (room === 'imprenta') setActiveView('imprenta');
+        };
+        window.addEventListener(TOUR_GOTO_EVENT, go);
+        return () => window.removeEventListener(TOUR_GOTO_EVENT, go);
+    }, []);
+    // El escritorio se explica cuando abres tu primer capítulo (y tus documentos, después).
+    useEffect(() => {
+        if (!currentFileId || currentFileId === 'mock-file-id') return;
+        requestTip('escritorio.guardado');
+        requestTip('escritorio.documentos');
+    }, [currentFileId]);
     const [reportInfo, setReportInfo] = useState<{ fileId: string; problems: number; high: number; top?: string; spelling: number; dudas: number; hasReport: boolean } | null>(null);
     useEffect(() => {
         const id = currentFileId;
@@ -1600,6 +1628,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     return (
         <>
+            <TourHost />
             {/* Nov 2026: en el celular los avisos van arriba: abajo tapaban el campo para escribirle a Mira. */}
             <Toaster
                 theme="dark"

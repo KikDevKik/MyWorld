@@ -170,7 +170,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                                 })}
                             </div>
                         )}
-                        <div className="flex items-end gap-2 rounded-xl border border-titanium-700 bg-titanium-900/80 px-3 py-2 focus-within:border-amber-700/60">
+                        <div data-tour="ideas-input" className="flex items-end gap-2 rounded-xl border border-titanium-700 bg-titanium-900/80 px-3 py-2 focus-within:border-amber-700/60">
                             <textarea
                                 ref={taRef}
                                 value={input}
