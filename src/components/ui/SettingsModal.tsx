@@ -416,10 +416,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         const folderIds = allPaths.map(p => p.id);
 
         const confirm = window.confirm(
-            "⚠️ ¡PELIGRO NUCLEAR! ⚠️\n\n" +
-            "Esto borrará TODOS los recuerdos (vectores) existentes de tu proyecto y empezará de cero.\n" +
-            "Es útil para eliminar 'fantasmas', pero tomará tiempo.\n\n" +
-            "¿Estás seguro de que quieres proceder?"
+            "MyWorld va a olvidar lo que leyó de tu proyecto y lo va a leer otra vez desde cero.\n\n" +
+            "Tus archivos no se tocan. Mientras termina, Mira puede saber menos de tu historia. Tarda unos minutos.\n\n" +
+            "¿Seguimos?"
         );
 
         if (!confirm) return;
@@ -449,7 +448,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 return;
             }
 
-            toast.info('Iniciando Purga y Re-indexación Nuclear...');
+            toast.info('Volviendo a leer tus archivos…');
 
             const stats = await callFunction<any>('indexTDB', {
                 folderIds: folderIds, // 👈 New: Pass array of IDs
@@ -460,10 +459,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
             console.log("☢️ Nuclear Re-index Result:", stats);
 
-            toast.success(`¡Memoria reconstruida! Archivos: ${stats.filesIndexed || 0}, Chunks: ${stats.chunksCreated || 0}, Fantasmas eliminados: ${stats.ghostFilesPruned || 0}`);
+            toast.success(`Listo: leí ${stats.filesIndexed || 0} archivos de nuevo.`);
         } catch (error: any) {
             console.error('Nuclear reindex failed:', error);
-            toast.error(`Error crítico: ${error.message}`);
+            toast.error('No se pudo terminar de leer tus archivos. Intenta de nuevo en un rato.');
         } finally {
             setIsReindexing(false);
         }

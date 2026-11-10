@@ -3,7 +3,7 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X, Brain, RefreshCw } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, ChevronRight, Plus, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X, Brain, RefreshCw } from 'lucide-react';
 import GuidePanel from './ui/GuidePanel';
 import CreateItemModal from './ui/CreateItemModal';
 import FolderPickerModal from './ui/FolderPickerModal';
@@ -11,7 +11,6 @@ import MemoryPanel from './ui/MemoryPanel';
 import { OPEN_MEMORY_PANEL } from './ui/MemoryToast';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
-import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { useLayoutStore } from "../stores/useLayoutStore"; // 🟢 IMPORT STORE
 import { getFirestore, onSnapshot, collection, query, where } from "firebase/firestore";
@@ -185,6 +184,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         document.addEventListener('visibilitychange', onFocus);
         return () => { window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus); };
     });
+
+    const accountUser = getAuth().currentUser;
 
     // 🟢 LOCALIZATION
     const { currentLanguage } = useLanguageStore();
@@ -393,6 +394,17 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     };
 
 
+    // Nov 2026: Drive a veces devuelve la misma carpeta dos veces; el filtro muestra cada nombre una sola vez.
+    const sagaOptions = useMemo(() => {
+        const seen = new Set<string>();
+        return topLevelFolders.filter((f: FileNode) => {
+            const k = (f.name || '').trim().toLowerCase();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }, [topLevelFolders]);
+
     // 🟢 STATUS INDICATOR HELPER
     const getStatusConfig = () => {
         switch (driveStatus) {
@@ -435,91 +447,46 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 )}
                 */}
 
+                {/* Nov 2026: cabecera simple. El nombre del proyecto abre sus ajustes; «Nuevo» crea archivo o carpeta.
+                    Sincronizar y escanear ya pasan solos (al entrar y al volver a la pestaña); volver a leer todo
+                    desde cero está en Preferencias. */}
                 <div className="flex items-center gap-2 mb-3">
-                    <div className="text-titanium-500">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                            <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                        </svg>
-                    </div>
-                    {/* Replaced 'Manual de Campo' text with generic 'Explorador' or similar if needed, or kept structural header */}
-                    <h2 className="text-sm font-medium text-titanium-200">{t.explorer}</h2>
-
-                    {/* ACTION BUTTONS (DISTRIBUTED) */}
-                    <div className="ml-auto flex items-center gap-2">
-                        {!isEmptyProject && (
-                            <button
-                                onClick={() => setIsCreateItemOpen(true)}
-                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-mira"
-                                title="Crear archivo o carpeta"
-                                aria-label="Crear archivo o carpeta"
-                            >
-                                <FilePlus size={16} />
-                            </button>
-                        )}
-                        {!isEmptyProject && (
-                            <button
-                                onClick={handleBringNotes}
-                                disabled={isBringing}
-                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-mira disabled:opacity-40"
-                                title="Sincronizar con Drive/Obsidian ahora"
-                                aria-label="Sincronizar con Drive/Obsidian ahora"
-                            >
-                                {isBringing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                            </button>
-                        )}
-
-                        {/* BOTÓN DE INDEXAR (MENU) */}
-                        <div className="relative" ref={indexMenuRef}>
-                            <button
-                                id="sidebar-brain-button"
-                                onClick={() => setIsIndexMenuOpen(!isIndexMenuOpen)}
-                                className={`p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
-                                title={t.index}
-                                aria-label={t.index}
-                                aria-expanded={isIndexMenuOpen}
-                            >
-                                <BrainCircuit size={16} />
-                            </button>
-
-                            {/* DROPDOWN MENU */}
-                            {isIndexMenuOpen && (
-                                <div className="absolute right-0 top-full mt-2 w-48 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                                    <button
-                                        onClick={() => {
-                                            onIndexRequest();
-                                            setIsIndexMenuOpen(false);
-                                        }}
-                                        className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
-                                    >
-                                        <BrainCircuit size={14} className="text-mira" />
-                                        <span>{t.scanFiles}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            onUpdateMemory();
-                                            setIsIndexMenuOpen(false);
-                                        }}
-                                        className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
-                                    >
-                                        <Sparkles size={14} className="text-mira" />
-                                        <span>{t.loadMemory}</span>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <button
+                        type="button"
+                        id="sidebar-project-settings"
+                        onClick={onOpenProjectSettings}
+                        className="min-w-0 flex-1 text-left px-2 py-1 -ml-2 rounded-md hover:bg-titanium-800 transition-colors group focus-visible:ring-2 focus-visible:ring-mira/60 outline-none"
+                        title={currentLanguage === 'es' ? 'Ajustes de este proyecto' : 'Project settings'}
+                    >
+                        <span className="block text-[11px] text-titanium-500">{t.project}</span>
+                        <span className="flex items-center gap-1 font-serif text-[15px] text-titanium-100">
+                            <span className="truncate">{config?.projectName || config?.activeBookContext || '…'}</span>
+                            <ChevronRight size={13} className="shrink-0 text-titanium-500 group-hover:text-titanium-200 transition-colors" aria-hidden="true" />
+                        </span>
+                    </button>
+                    {!isEmptyProject && (
+                        <button
+                            type="button"
+                            onClick={() => setIsCreateItemOpen(true)}
+                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-titanium-200 bg-titanium-800 hover:bg-mira/15 hover:text-mira transition-colors focus-visible:ring-2 focus-visible:ring-mira/60 outline-none"
+                            title={currentLanguage === 'es' ? 'Crear archivo o carpeta' : 'Create file or folder'}
+                        >
+                            <Plus size={14} aria-hidden="true" /> {currentLanguage === 'es' ? 'Nuevo' : 'New'}
+                        </button>
+                    )}
                 </div>
 
+                {sagaOptions.length > 1 && (
                 <div className="relative">
                     <select
                         value={selectedSagaId || ''}
                         onChange={(e) => setSelectedSagaId(e.target.value || null)}
                         className="w-full appearance-none bg-titanium-950 hover:bg-titanium-900 text-sm font-medium text-titanium-100 focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT/50 cursor-pointer py-2 px-3 pr-8 rounded-md border border-titanium-700 transition-all"
                         disabled={!fileTree || fileTree.length === 0}
-                        aria-label="Filtrar por Saga"
+                        aria-label={currentLanguage === 'es' ? 'Mostrar solo una saga' : 'Show only one saga'}
                     >
                         <option value="" className="bg-titanium-950 text-titanium-100">{t.globalView}</option>
-                        {topLevelFolders.map(folder => (
+                        {sagaOptions.map(folder => (
                             <option key={folder.id} value={folder.id} className="bg-titanium-950 text-titanium-100">
                                 {getLocalizedFolderName(folder.name, currentLanguage)}
                             </option>
@@ -530,10 +497,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-titanium-400 pointer-events-none transition-colors"
                     />
                 </div>
+                )}
             </div>
-
-            {/* 🟢 PROJECT IDENTITY HUD (SENTINEL PULSE) */}
-            <ProjectHUD />
 
             {/* FILE TREE */}
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
@@ -607,6 +572,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     </div>
                                     <div className="h-px flex-1 bg-titanium-700/60 ml-2 group-hover:bg-titanium-600/60 transition-colors"></div>
                                 </button>
+                                <p className="px-2 pl-7 -mt-0.5 mb-1.5 text-[11px] leading-snug text-titanium-500">{currentLanguage === 'es' ? 'Lo que ya es verdad en tu historia.' : 'What is already true in your story.'}</p>
 
                                 {isCanonOpen && (
                                     <div id="canon-tree">
@@ -648,6 +614,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     </div>
                                     <div className="h-px flex-1 bg-blue-900/30 ml-2 group-hover:bg-blue-900/50 transition-colors"></div>
                                 </button>
+                                <p className="px-2 pl-7 -mt-0.5 mb-1.5 text-[11px] leading-snug text-titanium-500">{currentLanguage === 'es' ? 'Notas, inspiración e ideas sin decidir.' : 'Notes, inspiration and undecided ideas.'}</p>
 
                                 {isResourcesOpen && (
                                     <div id="resources-tree">
@@ -751,32 +718,46 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <span>{status.text}</span>
                     </button>
                 )}
-                <div className="flex items-center justify-between">
-                    <button onClick={() => setIsGuidePanelOpen(true)} title={t.guide} aria-label={t.guide}
-                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-mira/10 transition-all">
-                        <HelpCircle size={16} />
-                    </button>
-                    <button onClick={() => setIsMemoryOpen(true)} title="Memoria: lo que MyWorld recuerda de tu proyecto (ver, corregir, borrar)" aria-label="Memoria"
+                <div className="flex items-center gap-1">
+                    <button onClick={() => setIsMemoryOpen(true)} title={currentLanguage === 'es' ? 'Lo que MyWorld recuerda de tu proyecto (ver, corregir, borrar)' : 'What MyWorld remembers about your project'}
                         className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-mira/90 hover:text-mira hover:bg-mira/15 transition-all text-xs font-medium">
-                        <Brain size={15} /> Memoria
+                        <Brain size={15} aria-hidden="true" /> {currentLanguage === 'es' ? 'Memoria' : 'Memory'}
                     </button>
-                    <button id="sidebar-project-settings" onClick={onOpenProjectSettings} title={t.project} aria-label={t.project}
-                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-mira/10 transition-all">
-                        <FolderCog size={16} />
+                    <button onClick={() => setIsGuidePanelOpen(true)}
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-titanium-300 hover:text-titanium-100 hover:bg-mira/10 transition-all text-xs font-medium">
+                        <HelpCircle size={15} aria-hidden="true" /> {t.guide}
                     </button>
-                    <button onClick={onOpenSettings} title={t.settings} aria-label={t.settings}
-                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-mira/10 transition-all">
-                        <Settings size={16} />
-                    </button>
-                    {driveStatus === 'connected' && (
-                        <span className="p-2 text-green-600/70" title={tStatus.connected} aria-label={tStatus.connected}>
-                            <status.icon size={14} />
-                        </span>
-                    )}
-                    <button onClick={onLogout} title={t.logout} aria-label={t.logout}
-                        className="p-2 rounded-md text-titanium-400 hover:text-red-400 hover:bg-red-900/10 transition-all">
-                        <LogOut size={16} />
-                    </button>
+                    {/* Cuenta: reutiliza el menú y el cierre al tocar fuera que antes usaba el cerebro */}
+                    <div className="relative ml-auto" ref={indexMenuRef}>
+                        <button
+                            type="button"
+                            onClick={() => setIsIndexMenuOpen(!isIndexMenuOpen)}
+                            aria-expanded={isIndexMenuOpen}
+                            aria-label={currentLanguage === 'es' ? 'Tu cuenta' : 'Your account'}
+                            title={currentLanguage === 'es' ? 'Tu cuenta' : 'Your account'}
+                            className="w-8 h-8 rounded-full overflow-hidden grid place-items-center bg-titanium-700 text-titanium-100 text-xs font-semibold hover:ring-2 hover:ring-mira/50 transition-all focus-visible:ring-2 focus-visible:ring-mira outline-none"
+                        >
+                            {accountUser?.photoURL
+                                ? <img src={accountUser.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                : (accountUser?.displayName || accountUser?.email || '?').charAt(0).toUpperCase()}
+                        </button>
+                        {isIndexMenuOpen && (
+                            <div className="absolute right-0 bottom-full mb-2 w-56 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden" role="menu">
+                                <div className="px-3 py-2 border-b border-titanium-700/60">
+                                    <p className="text-xs text-titanium-100 truncate">{accountUser?.displayName || (currentLanguage === 'es' ? 'Tu cuenta' : 'Your account')}</p>
+                                    {accountUser?.email && <p className="text-[11px] text-titanium-400 truncate">{accountUser.email}</p>}
+                                </div>
+                                <button role="menuitem" onClick={() => { setIsIndexMenuOpen(false); onOpenSettings(); }}
+                                    className="w-full text-left px-3 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors">
+                                    <Settings size={14} aria-hidden="true" /> {t.settings}
+                                </button>
+                                <button role="menuitem" onClick={() => { setIsIndexMenuOpen(false); onLogout(); }}
+                                    className="w-full text-left px-3 py-2.5 text-xs text-titanium-200 hover:bg-red-900/20 hover:text-red-300 flex items-center gap-2 transition-colors">
+                                    <LogOut size={14} aria-hidden="true" /> {t.logout}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 {isGuidePanelOpen && <GuidePanel onClose={() => setIsGuidePanelOpen(false)} />}
                 {isMemoryOpen && <MemoryPanel onClose={() => setIsMemoryOpen(false)} accessToken={accessToken} />}

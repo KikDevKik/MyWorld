@@ -73,8 +73,9 @@ export default function TourHost() {
 
     if (!tip || !ready) return null;
 
-    // El clip va cuando lo que explico todavía no está en pantalla (o si la pediste desde «Conoce tu casa»).
-    const showClip = !!tip.clip && clipOk && (!rect || forced);
+    // Nov 2026: el clip sale siempre que el cuarto tiene uno (antes solo si lo explicado no estaba a la vista,
+    // y casi nunca se veía). El resaltado sigue marcando dónde está en tu pantalla.
+    const showClip = !!tip.clip && clipOk;
     const pad = 6;
     let style: React.CSSProperties;
     if (narrow) {
