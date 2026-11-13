@@ -84,7 +84,7 @@ const text = res => (res.content || []).filter(b => b.type === 'text').map(b => 
 
 const outDir = path.join(here, 'resultados');
 fs.mkdirSync(outDir, { recursive: true });
-let failed = 0, total = 0;
+let failed = 0, total = 0, unknown = 0;
 
 for (const c of cases) {
     const system = TOOLS[c.herramienta]();
@@ -100,20 +100,22 @@ for (const c of cases) {
     const transcript = history.map((m, i) => `${m.role === 'user' ? 'AUTOR' : `IA (respuesta ${(i + 1) / 2})`}:\n${m.text}`).join('\n\n---\n\n');
     const judge = await client.messages.create({
         model: JUDGE, max_tokens: 3000, output_config: { effort: 'low' },
-        system: [{ type: 'text', text: 'Eres un revisor estricto de una IA que acompaña a escritores. Recibes una conversación y una lista numerada de comprobaciones. Para cada una decide si las respuestas de la IA la CUMPLEN. Sé literal: si dudas, no cumple. Responde SOLO JSON: [{"n":1,"cumple":true|false,"prueba":"cita corta de la respuesta que lo demuestra, o vacío"}]' }],
+        system: [{ type: 'text', text: 'Eres un revisor estricto de una IA que acompaña a escritores. Recibes una conversación y una lista numerada de comprobaciones. Para cada una decide si las respuestas de la IA la CUMPLEN. Sé literal: si dudas, no cumple. Responde SOLO con una línea por comprobación, en este formato exacto y sin nada más:\nN | SI | motivo corto\nN | NO | cita corta de la respuesta que lo incumple\n(N es el número de la comprobación.)' }],
         messages: [{ role: 'user', content: `CANON QUE RECIBIÓ LA IA:\n${c.canon?.trim() || '(ninguno)'}\n\nCONVERSACIÓN:\n${transcript}\n\nCOMPROBACIONES:\n${c.comprobaciones.map((x, i) => `${i + 1}. ${x}`).join('\n')}` }],
     });
-    let verdicts = [];
-    try { const j = text(judge); verdicts = JSON.parse(j.slice(j.indexOf('['), j.lastIndexOf(']') + 1)); } catch { console.error(`(${c.id}) el revisor respondió mal formado; mira el archivo de resultados.`); }
+    // Una línea por comprobación («3 | NO | cita»): aguanta comillas dentro de las citas, que rompían el JSON.
+    const verdicts = text(judge).split(/\r?\n/).map(l => l.match(/^\s*(\d+)\s*\|\s*(SI|SÍ|NO)\s*\|?\s*(.*)$/i)).filter(Boolean)
+        .map(m => ({ n: Number(m[1]), cumple: /^S/i.test(m[2]), prueba: m[3].trim() }));
     console.log(`\n=== ${c.id}`);
     c.comprobaciones.forEach((x, i) => {
         const v = verdicts.find(v => v.n === i + 1);
+        if (!v) { unknown++; console.log(`  ¿?    ${x}\n          → el revisor no dio veredicto: léela tú en el archivo de resultados`); return; }
         total++;
-        if (!v || !v.cumple) failed++;
-        console.log(`${v?.cumple ? '  ok  ' : ' FALLA'}  ${x}${v && !v.cumple && v.prueba ? `\n          → «${v.prueba}»` : ''}`);
+        if (!v.cumple) failed++;
+        console.log(`${v.cumple ? '  ok  ' : ' FALLA'}  ${x}${!v.cumple && v.prueba ? `\n          → ${v.prueba}` : ''}`);
     });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    fs.writeFileSync(path.join(outDir, `${c.id} ${stamp}.md`), `# ${c.id}\n\n${transcript}\n\n## Veredictos\n\n${c.comprobaciones.map((x, i) => { const v = verdicts.find(v => v.n === i + 1); return `- ${v?.cumple ? 'ok' : 'FALLA'}: ${x}${v?.prueba ? ` — «${v.prueba}»` : ''}`; }).join('\n')}\n`);
+    fs.writeFileSync(path.join(outDir, `${c.id} ${stamp}.md`), `# ${c.id}\n\n${transcript}\n\n## Veredictos\n\n${c.comprobaciones.map((x, i) => { const v = verdicts.find(v => v.n === i + 1); return `- ${!v ? 'SIN VEREDICTO' : v.cumple ? 'ok' : 'FALLA'}: ${x}${v?.prueba ? ` — «${v.prueba}»` : ''}`; }).join('\n')}\n`);
 }
-console.log(`\n${total - failed} de ${total} comprobaciones cumplidas. Las conversaciones completas están en scripts/prompt-evals/resultados/.`);
+console.log(`\n${total - failed} de ${total} comprobaciones cumplidas${unknown ? ` (${unknown} sin veredicto)` : ''}. Las conversaciones completas están en scripts/prompt-evals/resultados/.`);
 process.exit(failed ? 1 : 0);
