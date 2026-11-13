@@ -2,8 +2,9 @@
 // Repite los mensajes del autor de cada caso contra el prompt ACTUAL del código y otro modelo califica
 // cada respuesta contra la lista de comprobaciones del caso.
 //
-// Uso (desde la raíz del repo, con la clave en la variable de entorno; el script no la guarda ni la imprime):
-//   $env:ANTHROPIC_API_KEY = "..."            (PowerShell)
+// Uso (desde la raíz del repo). Usa la misma clave y espacio de trabajo que MyWorld (los lee de functions/.env;
+// no los guarda ni los imprime). Si no están ahí, ponlos antes en la terminal:
+//   $env:ANTHROPIC_API_KEY = "..." ; $env:ANTHROPIC_WORKSPACE_ID = "wrkspc_..."
 //   node scripts/prompt-evals/run.mjs                 -> todos los casos
 //   node scripts/prompt-evals/run.mjs ideas-el-tajo   -> solo ese caso
 //   node scripts/prompt-evals/run.mjs --dry           -> muestra qué enviaría, sin llamar a la IA (gratis)
@@ -60,9 +61,25 @@ if (dry) {
     process.exit(0);
 }
 
-if (!process.env.ANTHROPIC_API_KEY) { console.error('Falta ANTHROPIC_API_KEY en el entorno. Prueba primero con --dry.'); process.exit(1); }
+// La clave y el espacio de trabajo son los mismos que usa MyWorld: si no están en el entorno, se leen de functions/.env*
+// (solo esas dos variables; nunca se imprimen).
+for (const f of fs.readdirSync(path.join(root, 'functions')).filter(f => /^\.env(\..+)?$/.test(f) && !/example/i.test(f))) {
+    for (const line of fs.readFileSync(path.join(root, 'functions', f), 'utf8').split(/\r?\n/)) {
+        const m = line.match(/^\s*(ANTHROPIC_API_KEY|ANTHROPIC_WORKSPACE_ID)\s*=\s*["']?([^"'#\s]+)["']?/);
+        if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+    }
+}
+if (!process.env.ANTHROPIC_API_KEY) { console.error('Falta ANTHROPIC_API_KEY (ni en el entorno ni en functions/.env). Prueba primero con --dry.'); process.exit(1); }
 const sdk = await import(pathToFileURL(path.join(root, 'functions/node_modules/@anthropic-ai/sdk/index.mjs')).href).catch(() => import('@anthropic-ai/sdk'));
-const client = new (sdk.default || sdk.Anthropic)();
+const client = new (sdk.default || sdk.Anthropic)({
+    // La clave de MyWorld no está atada a un espacio de trabajo: hay que decir cuál, igual que hace el servidor.
+    ...(process.env.ANTHROPIC_WORKSPACE_ID ? { defaultHeaders: { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } } : {}),
+});
+const explain = e => {
+    if (/anthropic-workspace-id/.test(String(e?.message))) { console.error('\nLa clave pide el espacio de trabajo y no encontré ANTHROPIC_WORKSPACE_ID en functions/.env.\nPonlo así y vuelve a correr:  $env:ANTHROPIC_WORKSPACE_ID = "wrkspc_..."  (está en la consola de Anthropic, en Workspaces).'); process.exit(1); }
+    console.error('\nLa IA respondió con un error: ' + (e?.message || e)); process.exit(1);
+};
+process.on('unhandledRejection', explain);
 const text = res => (res.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
 
 const outDir = path.join(here, 'resultados');

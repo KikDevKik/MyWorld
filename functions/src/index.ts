@@ -17,6 +17,7 @@ import { _getDriveFileContentInternal } from "./utils/drive";
 import { textHash } from "./utils/text_hash";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { claudeEnabledForCurrentUser, myworldClaudeAvailable, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, REWRITE_RULE, monthlyCapUsd } from "./utils/claude_router";
+import { fileChangeDates, dateTag, CANON_DATES_RULE } from "./utils/canon_dates";
 import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
 import { planContext } from "./plan_context";
 import { getMemoryContext } from "./utils/memory_store";
@@ -1993,6 +1994,8 @@ ROL: Acompañas al autor en su propia obra. No escribes por él: lees su canon y
 [CANON, IDEA Y PROPUESTA]:
 Los archivos de la carpeta «Ideas (no canon)» y las notas de sesiones son ideas del autor, no hechos de su mundo: cuando las uses, dilo («en tu idea…, que aún no es canon»). Lo que propongas tú va dicho como propuesta tuya. Nunca presentes una idea o una propuesta como si ya fuera verdad en su historia.
 
+${CANON_DATES_RULE}
+
 [IDIOMA Y TONO]:
 - Responde en el idioma en que escribe el autor (si la obra está en inglés, en inglés).
 - Respeta la terminología del mundo tal como aparece en el canon: nombres, lugares, términos propios.
@@ -2145,7 +2148,8 @@ Si el autor quiere llevar a su documento algo que él mismo dictó o un ejemplo 
         const ranked = [...bookChunks, ...(activeFolder ? [...diverse].sort((a, b) => inFolder(b) - inFolder(a)) : diverse)];
         if (activeFolder) logger.info(`📂 [DIRECTOR] Libro "${bookFolder}": ${bookChunks.length} fragmentos extra (${[...new Set(bookChunks.map(c => c.fileName))].join(', ')}); en la búsqueda general: ${diverse.filter(c => inFolder(c) > 0).length}`);
         const claudeChunks = ranked.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
-        const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
+        const changedAt = await fileChangeDates(userId, claudeChunks.map(c => c.fileId));
+        const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName}${dateTag(changedAt.get(c.fileId))})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
         const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${REWRITE_RULE}\n\n${CRAFT_RULE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
         // Memoria de MyWorld: fuera de la caché (cambia cuando se guarda algo nuevo)
         // Nov 2026: + los focos de oficio ya anotados (para no repetirlos).

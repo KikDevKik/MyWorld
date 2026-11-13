@@ -17,6 +17,7 @@ import { fileText } from "./personajes";
 import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
 import { planContext } from "./plan_context";
 import { saveBookPov } from "./mira_taller";
+import { fileChangeDates, dateTag, CANON_DATES_RULE } from "./utils/canon_dates";
 
 const FOLDER = "application/vnd.google-apps.folder";
 export const SESSIONS_FOLDER = "Sesiones del Arquitecto";
@@ -232,6 +233,7 @@ async function relevantMaterial(uid: string, text: string, apiKey: string, skip?
         const seen = new Set<string>();
         const canon: string[] = [], refs: string[] = [];
         let chars = 0;
+        const changedAt = await fileChangeDates(uid, snap.docs.map(d => d.ref.parent.parent?.id));
         for (const d of snap.docs) {
             const c: any = d.data();
             const name = String(c.fileName || "Desconocido").replace(/\.md$/i, "");
@@ -243,7 +245,7 @@ async function relevantMaterial(uid: string, text: string, apiKey: string, skip?
             if (perFile[name] > 2 || chars + t.length > 11000) continue;
             chars += t.length;
             const folder = c.path && String(c.path).includes("/") ? ` (${String(c.path).replace(/\/[^/]*$/, "")})` : "";
-            (c.category === "reference" ? refs : canon).push(`### ${name}${folder}\n${t}`);
+            (c.category === "reference" ? refs : canon).push(`### ${name}${folder}${dateTag(changedAt.get(d.ref.parent.parent?.id || ""))}\n${t}`);
         }
         return [canon.length ? `CANON:\n${canon.join("\n\n")}` : "", refs.length ? `RECURSOS (referencias e ideas no canon):\n${refs.join("\n\n")}` : ""].filter(Boolean).join("\n\n");
     } catch (e: any) {
@@ -272,7 +274,7 @@ async function ask(contextBlocks: string[], instruction: string, label: string, 
     content.push({ type: "text", text: [...contextBlocks.filter(Boolean), instruction].join("\n\n") });
     const r = await callClaude({
         model: CLAUDE_SONNET,
-        system: [{ text: CONECTAR_SYSTEM + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
+        system: [{ text: CONECTAR_SYSTEM + "\n\n" + CANON_DATES_RULE + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
         content,
         maxTokens,
         effort: "low",
@@ -290,7 +292,7 @@ async function askGemini(contextBlocks: string[], instruction: string, label: st
     if (!apiKey) throw new HttpsError("failed-precondition", "El Arquitecto no tiene una clave de IA para responder.");
     const prompt = [stable, ...contextBlocks.filter(Boolean), instruction].filter(Boolean).join("\n\n");
     const r = await smartGenerateContent(new GoogleGenerativeAI(apiKey), prompt, {
-        systemInstruction: CONECTAR_SYSTEM + "\n\n" + MYWORLD_VOICE,
+        systemInstruction: CONECTAR_SYSTEM + "\n\n" + CANON_DATES_RULE + "\n\n" + MYWORLD_VOICE,
         _tier: "normal", taskType: "standard", thinkingBudget: 1024,
         maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.7,
         contextLabel: `${label}_Gemini`,
