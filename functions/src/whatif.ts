@@ -52,7 +52,9 @@ SUS REFERENCIAS (series, anime, películas, libros, juegos):
 
 SI SU IDEA CHOCA CON SU CANON:
 - Una sola línea al final («Ojo: …»), como dato y sin frenarlo, y solo si puedes señalar la frase del documento con la que choca. No repitas un aviso que ya diste.
-- Si lo que el autor ACABA de decir contradice un fragmento, no decidas quién tiene razón: pon las dos cosas juntas («Me dices que X; en <documento> dice Y. ¿Cuál vale para esta idea?»). Puede que el documento esté viejo.
+- Si lo que el autor ACABA de decir contradice un fragmento, no decidas quién tiene razón: pon las dos cosas juntas («Me dices que X; en <documento> dice Y. ¿Cuál vale para esta idea?»). Puede que el documento esté viejo: si el fragmento trae fecha y es de hace semanas o meses, dilo («ese documento no cambia desde octubre»).
+- Si dos fragmentos se contradicen entre sí, no elijas uno en silencio: muéstraselo como hallazgo en una línea («En A dice X y en B dice Y»), con sus fechas si las hay.
+- Si el autor pregunta por algo de su mundo y no aparece ni en los fragmentos ni en la memoria, dilo tal cual: «No lo encontré en tus archivos». No rellenes con algo verosímil.
 
 IMÁGENES (bocetos, referencias, diseños de personaje):
 - Mira lo que de verdad hay: silueta, paleta, ropa, pose, expresión, estilo. Describe solo lo que ves; si algo no se distingue, dilo.
@@ -122,6 +124,13 @@ async function referenceList(uid: string): Promise<{ id: string; name: string; p
         .map((f: any) => ({ id: f.id, name: String(f.name || "").replace(/\.md$/i, ""), path: String(f.path || "") }));
 }
 
+/** « · cambió por última vez el 3 oct 2026» a partir de la fecha del índice; vacío si no hay fecha. */
+function dateTag(iso?: string): string {
+    const d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return "";
+    return ` · cambió por última vez el ${d.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;
+}
+
 async function canonPeek(uid: string, text: string, requestData: any): Promise<string> {
     try {
         const embedder = new GeminiEmbedder({ apiKey: getAIKey(requestData, googleApiKey.value()), model: "gemini-embedding-001", taskType: TaskType.RETRIEVAL_QUERY });
@@ -134,7 +143,7 @@ async function canonPeek(uid: string, text: string, requestData: any): Promise<s
         // Nov 2026: si la idea nombra algo que tiene su propio documento («GardenFlowers»), ese documento entra primero.
         // La búsqueda por parecido a veces no lo trae y la IA decía «no lo tengo en tu proyecto».
         try {
-            const files = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "category").limit(400).get();
+            const files = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "category", "updatedAt").limit(400).get();
             const low = text.toLowerCase();
             const named = files.docs.filter(f => {
                 const x: any = f.data();
@@ -144,16 +153,23 @@ async function canonPeek(uid: string, text: string, requestData: any): Promise<s
             for (const f of named) {
                 const chunks = await f.ref.collection("chunks").select("text").limit(3).get();
                 const t = chunks.docs.map(c => String((c.data() as any).text || "")).join("\n").trim().slice(0, 2000);
-                if (t) { out.push(`(${String((f.data() as any).name || "").replace(/\.md$/i, "")}) ${t}`); chars += t.length; }
+                if (t) { out.push(`(${String((f.data() as any).name || "").replace(/\.md$/i, "")}${dateTag((f.data() as any).updatedAt)}) ${t}`); chars += t.length; }
             }
         } catch { /* sin índice: sigue con la búsqueda por parecido */ }
+        // Nov 2026: cada fragmento dice cuándo cambió su documento por última vez, para que la IA no corrija al autor con un archivo viejo.
+        const parents = new Map<string, any>();
+        for (const d of snap.docs) { const pr = d.ref.parent.parent; if (pr) parents.set(pr.path, pr); }
+        const changed = new Map<string, string>();
+        try {
+            if (parents.size) (await getFirestore().getAll(...Array.from(parents.values()))).forEach(f => changed.set(f.ref.path, String((f.data() as any)?.updatedAt || "")));
+        } catch { /* sin fechas: los fragmentos van sin ellas */ }
         for (const d of snap.docs) {
             const c: any = d.data();
             if (c.category === "reference") continue;
             const t = String(c.text || "").trim();
             if (!t || chars + t.length > 5000) continue;
             chars += t.length;
-            out.push(`(${String(c.fileName || "").replace(/\.md$/i, "")}) ${t}`);
+            out.push(`(${String(c.fileName || "").replace(/\.md$/i, "")}${dateTag(changed.get(d.ref.parent.parent?.path || ""))}) ${t}`);
         }
         return out.join("\n\n");
     } catch (e: any) {
@@ -304,7 +320,7 @@ export const whatIf = onCall(
             ]);
             const context = [
                 memory ? `SU MUNDO (memoria del proyecto):\n${memory}` : "",
-                canon ? `FRAGMENTOS DE SU CANON (cada uno empieza con el nombre del documento entre paréntesis; sirven para no inventar y para avisar choques, no para limitar):\n${canon}` : "FRAGMENTOS DE SU CANON: (no se recuperó ninguno para este tema: no afirmes nada sobre su canon)",
+                canon ? `FRAGMENTOS DE SU CANON (cada uno empieza con el nombre del documento entre paréntesis y, si se sabe, cuándo cambió por última vez; sirven para no inventar y para avisar choques, no para limitar):\n${canon}` : "FRAGMENTOS DE SU CANON: (no se recuperó ninguno para este tema: no afirmes nada sobre su canon)",
                 refText ? `REFERENCIAS QUE ELIGIÓ PARA ESTA CONVERSACIÓN:\n${refText}` : "",
                 refs.length ? `SUS REFERENCIAS EN RECURSOS (nombres): ${refs.filter(r => !r.path.startsWith(IDEAS_FOLDER + "/")).map(r => r.name).slice(0, 60).join(", ")}` : "",
             ].filter(Boolean).join("\n\n");

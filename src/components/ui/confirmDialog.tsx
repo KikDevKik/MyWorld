@@ -16,7 +16,14 @@ export interface ConfirmOptions {
     danger?: boolean;
 }
 
-interface Pending extends ConfirmOptions { resolve: (ok: boolean) => void }
+export interface PromptOptions extends ConfirmOptions {
+    placeholder?: string;
+    initial?: string;
+    /** texto que aparece sobre el campo (p. ej. «Escribe Borrar para confirmar») */
+    label?: string;
+}
+
+interface Pending extends ConfirmOptions { resolve: (ok: boolean, value?: string) => void; input?: { placeholder?: string; initial?: string; label?: string } }
 
 let push: ((p: Pending) => void) | null = null;
 
@@ -26,6 +33,14 @@ export function confirmDialog(opts: ConfirmOptions | string): Promise<boolean> {
         // Sin anfitrión montado (no debería pasar): se conserva el comportamiento anterior.
         if (!push) { resolve(window.confirm(o.message)); return; }
         push({ ...o, resolve });
+    });
+}
+
+/** Pide un texto corto (un nombre, una palabra de confirmación). Devuelve null si se cancela. Reemplaza a window.prompt. */
+export function promptDialog(opts: PromptOptions): Promise<string | null> {
+    return new Promise<string | null>(resolve => {
+        if (!push) { resolve(window.prompt(opts.message, opts.initial || '')); return; }
+        push({ ...opts, input: { placeholder: opts.placeholder, initial: opts.initial, label: opts.label }, resolve: (ok, value) => resolve(ok ? (value ?? '') : null) });
     });
 }
 
@@ -41,6 +56,8 @@ export const ConfirmHost: React.FC = () => {
     const okRef = useRef<HTMLButtonElement>(null);
     const cancelRef = useRef<HTMLButtonElement>(null);
     const lastFocus = useRef<HTMLElement | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [value, setValue] = useState('');
     const cur = queue[0];
 
     useEffect(() => {
@@ -50,7 +67,7 @@ export const ConfirmHost: React.FC = () => {
 
     const close = (ok: boolean) => {
         if (!cur) return;
-        cur.resolve(ok);
+        cur.resolve(ok, value);
         setQueue(q => q.slice(1));
         lastFocus.current?.focus?.();
     };
@@ -58,13 +75,17 @@ export const ConfirmHost: React.FC = () => {
     useEffect(() => {
         if (!cur) return;
         lastFocus.current = document.activeElement as HTMLElement | null;
-        (cur.danger ? cancelRef : okRef).current?.focus();
+        setValue(cur.input?.initial || '');
+        if (cur.input) setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select(); }, 0);
+        else (cur.danger ? cancelRef : okRef).current?.focus();
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); }
             // El foco no sale del diálogo: solo hay dos botones.
             if (e.key === 'Tab') {
                 e.preventDefault();
-                (document.activeElement === okRef.current ? cancelRef : okRef).current?.focus();
+                const order = [inputRef.current, cancelRef.current, okRef.current].filter(Boolean) as HTMLElement[];
+                const i = order.indexOf(document.activeElement as HTMLElement);
+                order[(i + (e.shiftKey ? order.length - 1 : 1)) % order.length]?.focus();
             }
         };
         document.addEventListener('keydown', onKey, true);
@@ -97,6 +118,21 @@ export const ConfirmHost: React.FC = () => {
                         <div id="mw-confirm-msg" className="mt-1.5 space-y-2 text-[13.5px] leading-relaxed text-titanium-300">
                             {paragraphs.map((p, i) => <p key={i} className="whitespace-pre-line">{p}</p>)}
                         </div>
+                        {cur.input && (
+                            <label className="mt-3 block">
+                                {cur.input.label && <span className="mb-1 block text-[12px] text-titanium-400">{cur.input.label}</span>}
+                                <input
+                                    ref={inputRef}
+                                    value={value}
+                                    onChange={e => setValue(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); close(true); } }}
+                                    placeholder={cur.input.placeholder}
+                                    aria-label={cur.input.label || cur.title || cur.message}
+                                    autoComplete="off"
+                                    className="w-full rounded-lg border border-titanium-700 bg-titanium-950 px-3 py-2 text-[14px] text-titanium-50 outline-none focus:border-[var(--mw-coral)]"
+                                />
+                            </label>
+                        )}
                     </div>
                 </div>
                 <div className="mt-5 flex flex-col-reverse gap-2 px-5 pb-5 sm:flex-row sm:justify-end">

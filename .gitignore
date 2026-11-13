@@ -47,3 +47,6 @@ test-results/
 
 # Oct 2026: material de diseño de Mira (referencias y sprites en bruto), no se publica
 design/
+
+# Resultados del banco de pruebas de prompts
+scripts/prompt-evals/resultados/
