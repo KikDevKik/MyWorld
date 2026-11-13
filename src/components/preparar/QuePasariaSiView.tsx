@@ -63,6 +63,13 @@ export function parseIdeaNote(content: string) {
     return { meta, images, title, body, conversation };
 }
 
+/** La IA cierra con «Idea: <título>». Se separa del texto para mostrarlo en el botón de guardar, no como una línea suelta. */
+export function splitIdeaTitle(text: string): { body: string; title: string } {
+    const m = String(text || '').match(/\n?\s*\**Idea:\**\s*(.+?)\**\s*$/);
+    if (!m || m.index === undefined) return { body: text, title: '' };
+    return { body: text.slice(0, m.index).trimEnd(), title: m[1].replace(/^[«"]|[»".]$/g, '').trim() };
+}
+
 const fmtDate = (iso?: string) => {
     if (!iso) return '';
     const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso);
@@ -264,7 +271,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
             <div className="flex-1 flex flex-col min-w-0">
                 <div className="shrink-0 border-b border-amber-900/30 px-4 sm:px-6 py-2.5 flex items-center gap-2 text-[12px] text-amber-200/80">
                     <Lightbulb size={14} className="shrink-0 text-amber-400" aria-hidden="true" />
-                    <span className="min-w-0">Aquí nada es canon. Imagina sin miedo: lo que quieras conservar se guarda en <b>Recursos → Ideas (no canon)</b>.</span>
+                    <span className="min-w-0">Aquí nada es canon.<span className="hidden sm:inline"> Imagina sin miedo: lo que quieras conservar se guarda en <b>Recursos → Ideas (no canon)</b>.</span></span>
                     <button onClick={() => setIdeasOpen(true)} className="ml-auto lg:hidden shrink-0 inline-flex items-center gap-1 rounded px-2 py-1.5 text-titanium-300 hover:text-titanium-50 hover:bg-titanium-800/60">
                         <Bookmark size={12} aria-hidden="true" /> Guardadas{ideas.length ? ` (${ideas.length})` : ''}
                     </button>
@@ -304,16 +311,16 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                                     )}
                                     {m.text && <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-titanium-800/70 px-4 py-2.5 text-[14px] text-titanium-100 whitespace-pre-wrap">{m.text}</div>}
                                 </div>
-                            ) : (
+                            ) : (() => { const { body, title } = splitIdeaTitle(m.text); return (
                                 <div key={i} className="group">
                                     <div className="prose prose-invert prose-sm max-w-none text-titanium-200 prose-p:leading-relaxed prose-strong:text-amber-100">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
                                     </div>
                                     <button onClick={() => prepareIdea(i)} disabled={preparing !== null} className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-800/40 px-2.5 py-1.5 text-[11.5px] text-amber-200/90 hover:bg-amber-900/20 disabled:opacity-40">
-                                        {preparing === i ? <Loader2 size={11} className="animate-spin" aria-hidden="true" /> : <Bookmark size={11} aria-hidden="true" />} Guardar como idea
+                                        {preparing === i ? <Loader2 size={11} className="animate-spin" aria-hidden="true" /> : <Bookmark size={11} aria-hidden="true" />} {title ? <>Guardar <span className="font-medium text-amber-100">«{title}»</span></> : 'Guardar como idea'}
                                     </button>
                                 </div>
-                            )
+                            ); })()
                         ))}
                         {thinking && <div role="status" className="flex items-center gap-2 text-titanium-400 text-sm"><Loader2 size={14} className="animate-spin text-amber-400" aria-hidden="true" /> {pending.length || messages[messages.length - 1]?.images?.length ? 'Guardando en tu Drive e imaginando…' : 'Imaginando…'}</div>}
                         <div ref={endRef} />
@@ -413,7 +420,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                 <div className="absolute inset-0 z-[60] flex justify-end bg-black/55" onMouseDown={e => { if (e.target === e.currentTarget) setSheet(null); }}>
                     <article role="dialog" aria-modal="true" aria-labelledby="mw-sheet-title" className="flex h-full w-full max-w-[720px] flex-col border-l border-titanium-700 bg-titanium-900 shadow-[-30px_0_80px_rgba(0,0,0,0.45)] motion-safe:animate-in motion-safe:slide-in-from-right-8 motion-safe:duration-200">
                         <header className="flex shrink-0 items-center gap-3 border-b border-titanium-800 px-5 py-3">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-700/50 bg-amber-950/30 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-amber-200">
+                            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-700/50 bg-amber-950/30 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-amber-200">
                                 {parsed?.meta.tipo === 'diseño' ? <Palette size={11} aria-hidden="true" /> : <Lightbulb size={11} aria-hidden="true" />}
                                 {parsed?.meta.tipo === 'diseño' ? 'Hoja de diseño' : parsed?.meta.tipo === 'nota' ? 'Nota' : 'Idea'} · no canon
                             </span>
@@ -431,7 +438,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                                         {!!parsed.images.length && (
                                             <div className="mt-6">
                                                 <DriveImage id={parsed.images[0].id} token={accessToken} alt={parsed.images[0].name}
-                                                    onClick={url => setLightbox({ url, alt: parsed.images[0].name })}
+                                                    onClick={url => setLightbox({ url, alt: parsed.images[0].name })} fit="contain"
                                                     className="w-full rounded-xl border border-titanium-700 bg-titanium-950 aspect-[4/3]" />
                                                 {parsed.images.length > 1 && (
                                                     <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5">

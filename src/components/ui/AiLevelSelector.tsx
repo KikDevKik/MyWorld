@@ -6,8 +6,14 @@ import { callFunction } from '../../services/api';
 import { AiLevel, getAiLevel, setAiLevelStored, getGeminiPaid, setGeminiPaidStored } from '../../hooks/aiLevel';
 
 const usd = (n: number) => n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 3 : 2 });
-interface Status { myworldAvailable?: boolean; claudeActive?: boolean; monthCostUsd: number; calls: number; byokCostUsd?: number; byokCalls?: number; capUsd?: number; byFeature?: Record<string, number> }
+interface Status { myworldAvailable?: boolean; claudeActive?: boolean; monthCostUsd: number; calls: number; byokCostUsd?: number; byokCalls?: number; capUsd?: number; byFeature?: Record<string, number>; byTool?: Record<string, { costUsd?: number; calls?: number; ms?: number; inTok?: number; outTok?: number }>; byDay?: Record<string, number> }
 // Nov 2026: en qué se fue el gasto del mes (se registra desde noviembre; lo anterior cuenta en el total).
+const TOOL_NAMES: Record<string, string> = {
+    WhatIf: 'Ideas: cada respuesta', WhatIfDistill: 'Ideas: preparar la nota', Director: 'Mira: cada respuesta', MemoryUpdate: 'Actualizar la memoria',
+    ChapterReport: 'Reporte de capítulo', ChapterVoices: 'Reporte: voces', ChapterCanon: 'Reporte: canon', ChapterDoubt: 'Reporte: dudas',
+    GuardianWatch: 'Vigilancia de canon', WorldNames: 'Nombres del mundo', ProfileExtract: 'Fichas de personaje', FactExtractor: 'Extraer hechos',
+    ArquitectoModeDetect: 'Arquitecto: leer el mensaje', ArquitectoInitMessage: 'Arquitecto: abrir sesión', ArquitectoAnalyze: 'Arquitecto: análisis',
+};
 const FEATURE_NAMES: Record<string, string> = { arquitecto: 'La mesa del arquitecto', mira: 'Mira', estudio: 'El estudio (reportes)', mesa: 'Mapa, fichero y frasco', biblioteca: 'La biblioteca', otras: 'Tareas en segundo plano' };
 interface Props { hasGeminiKey: boolean; hasAnthropicKey: boolean }
 
@@ -83,6 +89,32 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                                             ))}
                                             {before >= 0.01 && <li className="flex justify-between gap-3 text-titanium-500"><span>Antes de separar por herramienta</span><span className="tabular-nums">US$ {usd(before)}</span></li>}
                                         </ul>
+                                        {status.byTool && Object.keys(status.byTool).length > 0 && (() => {
+                                            const tools = Object.entries(status.byTool!).map(([k, v]) => ({ k, cost: v.costUsd || 0, calls: v.calls || 0, ms: v.ms || 0 })).filter(t => t.calls > 0).sort((a, b) => b.cost - a.cost);
+                                            const days = Object.entries(status.byDay || {}).sort((a, b) => b[1] - a[1]);
+                                            return (
+                                                <details className="mt-2">
+                                                    <summary className="cursor-pointer text-titanium-400 hover:text-titanium-200">Detalle por tarea</summary>
+                                                    <div className="mt-1.5 overflow-x-auto">
+                                                        <table className="w-full text-left tabular-nums">
+                                                            <thead><tr className="text-titanium-500"><th className="font-normal pr-2">Tarea</th><th className="font-normal px-2 text-right">Veces</th><th className="font-normal px-2 text-right">Espera</th><th className="font-normal px-2 text-right">Cada una</th><th className="font-normal pl-2 text-right">Total</th></tr></thead>
+                                                            <tbody>
+                                                                {tools.map(t => (
+                                                                    <tr key={t.k} className="text-titanium-300">
+                                                                        <td className="pr-2">{TOOL_NAMES[t.k] || t.k}</td>
+                                                                        <td className="px-2 text-right">{t.calls}</td>
+                                                                        <td className="px-2 text-right">{t.ms ? `${Math.round(t.ms / t.calls / 1000)} s` : '·'}</td>
+                                                                        <td className="px-2 text-right">US$ {(t.cost / t.calls).toFixed(3)}</td>
+                                                                        <td className="pl-2 text-right">US$ {usd(t.cost)}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    {days.length > 0 && <p className="mt-1.5 text-titanium-500">Día más caro: el {Number(days[0][0])}, con US$ {usd(days[0][1])}. Cuenta desde que se activó este detalle.</p>}
+                                                </details>
+                                            );
+                                        })()}
                                     </div>
                                 );
                             })()}

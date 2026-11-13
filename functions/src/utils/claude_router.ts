@@ -164,6 +164,7 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
         text: b.text,
         ...(b.cache ? { cache_control: (b.ttl1h ? { type: "ephemeral" as const, ttl: "1h" } : { type: "ephemeral" as const }) } : {}),
     }));
+    const t0 = Date.now();
     try {
         const res: any = await getClient().messages.create({
             model: opts.model,
@@ -179,7 +180,7 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
         const u = res.usage || {};
         const stopReason = String(res.stop_reason || '');
         logger.info(`🟣 [CLAUDE] ${label} | ${opts.model} | stop=${stopReason} | in=${u.input_tokens} cacheW=${u.cache_creation_input_tokens || 0} cacheR=${u.cache_read_input_tokens || 0} out=${u.output_tokens} (pensamiento=${u.output_tokens_details?.thinking_tokens ?? '?'})`);
-        recordUsage(opts.model, u, label).catch(() => {});
+        recordUsage(opts.model, u, label, Date.now() - t0).catch(() => {});
         if (!text) {
             const details = JSON.stringify(res.stop_details || res.content || []).slice(0, 500);
             logger.warn(`⚠️ [CLAUDE] ${label}: respuesta vacía (stop=${stopReason}) ${details}`);
@@ -205,7 +206,7 @@ export function featureOf(label: string): string {
     return "otras";
 }
 
-async function recordUsage(model: string, u: any, label = "") {
+async function recordUsage(model: string, u: any, label = "", ms = 0) {
     const uid = getRequestUid();
     if (!uid) return;
     const p = PRICES[model];
@@ -231,6 +232,12 @@ async function recordUsage(model: string, u: any, label = "") {
         outputTokens: FieldValue.increment(outTok),
         byModel: { [model.replace(/[.\-]/g, "_")]: FieldValue.increment(cost) },
         byFeature: { [featureOf(label)]: FieldValue.increment(cost) },
+        // Nov 2026: detalle por tarea (cuántas veces, cuánto tardó, cuánto costó) y por día, para ver dónde se va el saldo.
+        byTool: { [String(label || "otras").replace(/[^A-Za-z0-9_]/g, "_").slice(0, 40)]: {
+            costUsd: FieldValue.increment(cost), calls: FieldValue.increment(1), ms: FieldValue.increment(ms),
+            inTok: FieldValue.increment(inTok + cw + cr), outTok: FieldValue.increment(outTok), cacheRead: FieldValue.increment(cr),
+        } },
+        byDay: { [new Date().toISOString().slice(8, 10)]: FieldValue.increment(cost) },
         updatedAt: new Date().toISOString(),
     }, { merge: true });
 }

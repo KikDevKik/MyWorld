@@ -29,9 +29,11 @@ interface Props {
     alt: string;
     className?: string;
     onClick?: (url: string) => void;
+    /** 'contain' muestra la imagen entera (hojas de diseño); por defecto recorta para llenar. */
+    fit?: 'cover' | 'contain';
 }
 
-export const DriveImage: React.FC<Props> = ({ id, token, alt, className = '', onClick }) => {
+export const DriveImage: React.FC<Props> = ({ id, token, alt, className = '', onClick, fit = 'cover' }) => {
     const [url, setUrl] = useState<string | null>(cache.get(id) || null);
     const [failed, setFailed] = useState(false);
 
@@ -57,7 +59,7 @@ export const DriveImage: React.FC<Props> = ({ id, token, alt, className = '', on
     if (!url) {
         return <span className={`flex items-center justify-center bg-titanium-800/60 text-titanium-500 ${className}`} aria-label={`Cargando ${alt}`}><Loader2 size={16} className="animate-spin" aria-hidden="true" /></span>;
     }
-    const img = <img src={url} alt={alt} loading="lazy" decoding="async" className={`object-cover ${onClick ? '' : className}`} style={onClick ? { width: '100%', height: '100%' } : undefined} />;
+    const img = <img src={url} alt={alt} loading="lazy" decoding="async" className={`${fit === 'contain' ? 'object-contain' : 'object-cover'} ${onClick ? '' : className}`} style={onClick ? { width: '100%', height: '100%' } : undefined} />;
     if (!onClick) return img;
     return (
         <button type="button" onClick={() => onClick(url)} className={`block overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 ${className}`} aria-label={`Ver ${alt} en grande`}>
