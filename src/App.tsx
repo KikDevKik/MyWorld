@@ -23,6 +23,7 @@ import { useIsNarrow } from './hooks/useMediaQuery';
 import FirstSteps from './components/ui/FirstSteps';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
+import { ConfirmHost } from './components/ui/confirmDialog';
 import { FileCache } from './utils/fileCache';
 import { textHash } from './utils/textHash';
 import VaultSidebar from './components/VaultSidebar';
@@ -1629,6 +1630,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     return (
         <>
             <TourHost />
+            <ConfirmHost />
             {/* Nov 2026: en el celular los avisos van arriba: abajo tapaban el campo para escribirle a Mira. */}
             <Toaster
                 theme="dark"

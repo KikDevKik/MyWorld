@@ -1,3 +1,4 @@
+import { confirmDialog } from './ui/confirmDialog';
 import { rememberExchange } from '../services/memoryService';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import type { GemId, Gem, DriveFile } from '../types';
@@ -283,7 +284,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         if (context.length === 1) {
             // Scenario A: Smart Patch
             const targetFile = context[0];
-            const confirm = window.confirm(`¿Deseas actualizar "${targetFile.name}" con esta información?`);
+            const confirm = await confirmDialog({ title: `¿Actualizar «${targetFile.name}»?`, message: 'Se integra esta respuesta en el archivo.', confirm: 'Actualizar' });
             if (!confirm) return;
 
             const toastId = toast.loading("Cristalizando...");
@@ -301,7 +302,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             }
         } else {
             // Scenario B: Create New
-            const confirm = window.confirm(t.common.createFromChatConfirm);
+            const confirm = await confirmDialog(t.common.createFromChatConfirm);
             if (confirm) {
                 const name = window.prompt(t.editor.enterFileName);
                 if (!name) return;

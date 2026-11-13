@@ -1,3 +1,4 @@
+import { confirmDialog } from '../ui/confirmDialog';
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, ShieldAlert, Cloud, CloudOff, RefreshCw, X, Trash2, AlertTriangle, Loader2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
@@ -74,7 +75,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
     const handlePurge = async () => {
         if (!scanResult || scanResult.ghostCount === 0) return;
 
-        if (!confirm(`${t.common?.confirmPurge || '¿CONFIRMAR PURGA?'} ${t.common?.purgeCountDesc?.replace('{count}', String(scanResult.ghostCount)) || `Se eliminarán permanentemente ${scanResult.ghostCount} archivos fantasma.`}`)) {
+        if (!(await confirmDialog({ danger: true, message: `${t.common?.confirmPurge || '¿CONFIRMAR PURGA?'} ${t.common?.purgeCountDesc?.replace('{count}', String(scanResult.ghostCount)) || `Se eliminarán permanentemente ${scanResult.ghostCount} archivos fantasma.`}` }))) {
             return;
         }
 

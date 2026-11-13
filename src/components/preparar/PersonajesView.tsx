@@ -2,6 +2,7 @@
 // Escanea el canon, separa a los personajes con ficha de los que solo aparecen en el manuscrito,
 // revisa cada ficha contra el texto, entrevista al autor para completarla y propone la ficha
 // actualizada (con sus palabras) para que la apruebe antes de guardarla en Drive.
+import { confirmDialog } from '../ui/confirmDialog';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -157,7 +158,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
     };
 
     const resetInterview = async () => {
-        if (!sel || !window.confirm('¿Empezar la entrevista de nuevo?')) return;
+        if (!sel || !(await confirmDialog({ title: '¿Empezar la entrevista de nuevo?', message: 'Se borra lo conversado en esta entrevista. La ficha del personaje no se toca.', confirm: 'Empezar de nuevo', cancel: 'Seguir en esta' }))) return;
         try { await callFunction('personajes', { mode: 'resetInterview', id: sel }); setMensajes([]); } catch { toast.error('No pude reiniciar.'); }
     };
 

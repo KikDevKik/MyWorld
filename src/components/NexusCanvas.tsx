@@ -1,3 +1,4 @@
+import { confirmDialog } from './ui/confirmDialog';
 import React, { useState, useEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -856,7 +857,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
     };
 
     const handleClearAll = async () => {
-        if (!confirm(tNexus.confirmClear)) return;
+        if (!(await confirmDialog({ message: tNexus.confirmClear, danger: true }))) return;
 
         // 1. Clear Local Ghosts
         setGhostNodes([]);

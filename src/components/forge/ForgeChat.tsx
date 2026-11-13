@@ -1,3 +1,4 @@
+import { confirmDialog } from '../ui/confirmDialog';
 import React, { useState, useEffect, useRef } from 'react';
 import { getAuth } from 'firebase/auth';
 import { getApp } from 'firebase/app';
@@ -443,7 +444,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
 
     // --- HANDLERS ---
     const handlePurgeSession = async () => {
-        if (!window.confirm("¿Borrar chat actual?")) return;
+        if (!(await confirmDialog({ title: '¿Borrar este chat?', message: 'Se borran los mensajes de esta conversación. No se puede deshacer.', confirm: 'Borrar', danger: true }))) return;
         setMessages([]);
         await callFunction('clearSessionMessages', { sessionId });
     };

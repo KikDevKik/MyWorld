@@ -1,3 +1,4 @@
+import { confirmDialog } from './ui/confirmDialog';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FlaskConical, Search, FileText, Image as ImageIcon, Music, Book, MoreHorizontal, Tag, Filter, Loader2, FilePlus, History, Plus, Trash2, RefreshCw, AlertCircle, ShieldAlert, X } from 'lucide-react';
 import { DriveFile, Gem } from '../types';
@@ -249,7 +250,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
     const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
         e.stopPropagation();
         if (!user) return;
-        const ok = window.confirm('¿Eliminar esta conversación? Esta acción no se puede deshacer.');
+        const ok = await confirmDialog({ title: '¿Eliminar esta conversación?', message: 'No se puede deshacer.', confirm: 'Eliminar', danger: true });
         if (!ok) return;
         try {
             await MuseSessionService.deleteSession(user.uid, sessionId);

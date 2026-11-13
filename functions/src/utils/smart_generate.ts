@@ -239,7 +239,11 @@ async function _executeGeneration(
             } as any
         }, { timeout: timeoutMs });
 
-        const result = await model.generateContent(prompt);
+        // Nov 2026: la imagen adjunta también llega a Gemini (antes solo la veía Claude).
+        const media = config.mediaPayload?.inlineData;
+        const result = await model.generateContent(media?.data && media.mimeType?.startsWith("image/")
+            ? [{ text: prompt }, { inlineData: { mimeType: media.mimeType, data: media.data } }] as any
+            : prompt);
         const response = result.response;
 
         // A. Verificación de Seguridad (Safety Check)

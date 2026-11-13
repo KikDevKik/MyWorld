@@ -1,3 +1,4 @@
+import { confirmDialog } from './ui/confirmDialog';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MiraSprite } from './mira/MiraSprite';
 import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks, SpellCheck, LayoutGrid } from 'lucide-react';
@@ -448,7 +449,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         // Evitar resúmenes duplicados: si lo último ya es el resumen, confirmar antes de gastar otro.
         const lastMsg = messages.filter(m => m.role !== 'system').slice(-1)[0];
         if (lastMsg?.role === 'assistant' && /##\s*(Ideas sueltas|Conexiones que decidiste|Por decidir)/.test(lastMsg.text || '')
-            && !window.confirm('Ya resumiste esta sesión y no has escrito nada nuevo desde entonces. ¿Resumir otra vez? (crea otra nota en Recursos)')) return;
+            && !(await confirmDialog({ title: '¿Resumir otra vez?', message: 'Ya resumiste esta sesión y no has escrito nada nuevo desde entonces. Si sigues, se crea otra nota en Recursos.', confirm: 'Resumir otra vez' }))) return;
         setIsClosing(true);
         try {
             const r = await callFunction<{ summary: string; savedAs?: string | null }>('arquitectoCerrarSesion', { sessionId: arquitectoSessionId, accessToken }, { timeout: 180000 });

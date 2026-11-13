@@ -1,3 +1,4 @@
+import { confirmDialog } from './confirmDialog';
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { X, Plus, Trash2, Save, Folder, Book, Star, Brain, Cpu, LayoutTemplate, Download, Loader2, CheckCircle2, FolderOpen, CheckCircle } from 'lucide-react';
@@ -275,7 +276,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
 
     // 🟢 BUILD TITANIUM STRUCTURE
     const handleCreateStructure = async () => {
-        if (!confirm(t.editor.noProjectDesc)) return; // reusing message approx
+        if (!(await confirmDialog(t.editor.noProjectDesc))) return;
 
         setIsAnalyzing(true);
         const token = accessToken;

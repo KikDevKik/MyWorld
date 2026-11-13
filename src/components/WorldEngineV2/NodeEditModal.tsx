@@ -1,3 +1,4 @@
+import { confirmDialog } from '../ui/confirmDialog';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
@@ -59,7 +60,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
 
     const handleDelete = async () => {
         if (!node || !onDelete) return;
-        if (!confirm("¿Estás seguro de que quieres eliminar este nodo permanentemente?")) return;
+        if (!(await confirmDialog({ title: '¿Eliminar este nodo?', message: 'Se elimina de forma permanente.', confirm: 'Eliminar', danger: true }))) return;
 
         setIsDeleting(true);
         try {

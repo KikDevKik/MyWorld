@@ -2,6 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
+import { confirmDialog } from './confirmDialog';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info, Globe2, Zap, Leaf, ExternalLink, Copy } from 'lucide-react';
@@ -198,7 +199,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         }
 
         // 1. First Confirmation
-        if (!window.confirm(t.nukeWarning)) return;
+        if (!(await confirmDialog({ message: t.nukeWarning, danger: true }))) return;
 
         // 2. Second Confirmation (Typed)
         // Hardcode expected keywords per language to match translation logic if needed,
@@ -415,11 +416,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
         const folderIds = allPaths.map(p => p.id);
 
-        const confirm = window.confirm(
-            "MyWorld va a olvidar lo que leyó de tu proyecto y lo va a leer otra vez desde cero.\n\n" +
-            "Tus archivos no se tocan. Mientras termina, Mira puede saber menos de tu historia. Tarda unos minutos.\n\n" +
-            "¿Seguimos?"
-        );
+        const confirm = await confirmDialog({
+            title: '¿Leer tu proyecto otra vez desde cero?',
+            message: "MyWorld va a olvidar lo que leyó de tu proyecto y lo va a leer otra vez.\n\n" +
+                "Tus archivos no se tocan. Mientras termina, Mira puede saber menos de tu historia. Tarda unos minutos.",
+            confirm: 'Sí, leer de nuevo',
+        });
 
         if (!confirm) return;
 

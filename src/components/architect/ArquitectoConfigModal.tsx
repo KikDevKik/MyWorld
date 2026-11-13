@@ -1,3 +1,4 @@
+import { confirmDialog } from '../ui/confirmDialog';
 import React, { useState } from 'react';
 import { X, ShieldAlert, Sparkles, BrainCircuit, BookOpen, Users, LayoutDashboard, Flame, Loader2 } from 'lucide-react';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
@@ -26,7 +27,7 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
         if (!sessionId || !userId) return;
 
         const confirmMsg = "¿Estás 100% seguro de purgar el Roadmap de esta sesión? Esto destruirá todas las tarjetas y el objetivo, forzando un reinicio desde el Triage/Inquisidor.";
-        if (!window.confirm(confirmMsg)) return;
+        if (!(await confirmDialog({ message: confirmMsg, danger: true }))) return;
 
         setIsDeleting(true);
         setIsPurging(true); // 🟢 BLOQUEO: Evitar rehidratación fantasma
@@ -132,8 +133,8 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
                                 Elimina todo el progreso de esta sesión y reinicia el Arquitecto desde cero. Esta acción no se puede deshacer.
                             </p>
                             <button
-                                onClick={() => {
-                                    if (window.confirm(tArch.confirmReinit || "¿Estás seguro de reiniciar?")) {
+                                onClick={async () => {
+                                    if (await confirmDialog({ message: tArch.confirmReinit || "¿Estás seguro de reiniciar?", danger: true })) {
                                         if (onReinitialize) {
                                             onReinitialize();
                                             onClose();

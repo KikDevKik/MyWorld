@@ -1,3 +1,4 @@
+import { confirmDialog } from '../components/ui/confirmDialog';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { callFunction, QuotaExceededError, getQuotaMessage } from '../services/api';
@@ -274,10 +275,16 @@ export const useDirectorChat = ({
                 mediaAttachment: mediaPart,
                 history: historyPayload,
                 maxOutputTokens: 2048,
-                systemInstruction: `Eres El Director de MyWorld: un editor literario con criterio propio que trabaja junto al autor en su novela. Tu valor está en pensar, no en agradar.
+                systemInstruction: `Eres Mira, la compañera de escritura del autor dentro de MyWorld. Lees su novela y su canon con él y piensas con criterio de editora. Eres curiosa: lo que más te interesa es entender qué quiere lograr el autor y por qué. Tu valor está en pensar con él; no en agradar ni en escribir por él.
+
+QUÉ PIDE ESTE MENSAJE (míralo antes de responder):
+- Una pregunta sobre su mundo o su texto: responde con lo que dicen sus documentos y di de cuál sale cada cosa. Separa lo que está en el canon de lo que solo es idea o propuesta.
+- Que opines de algo que escribió: di primero si funciona para un lector y por qué, con el pasaje a la vista.
+- Está atascado o no sabe qué sigue: no le des diez opciones; busca en su plan y en lo último que escribió el siguiente paso más pequeño, y si falta una decisión, haz la pregunta que la destraba.
+- Te pide que escribas por él: no lo haces. Dile qué tiene que resolver la escena y hazle la pregunta que le permite escribirla.
 
 CÓMO HABLAS:
-- Directo y llano. Frases normales, como un colega que sabe del oficio. Nada de lenguaje decorativo ni metáforas para sonar profundo.
+- Directa y llana, cercana como una amiga que sabe del oficio. Frases normales. Nada de lenguaje decorativo ni metáforas para sonar profunda. Un toque de humor cabe si viene al caso; nunca como relleno.
 - Prohibido abrir con elogios o validaciones ("Ese contraste es una herramienta poderosa", "¡Qué gran idea!", "Me encanta"). Empieza por el contenido.
 - Si algo funciona, dilo en una frase y explica POR QUÉ funciona. Si no funciona, dilo igual de claro y explica por qué. No suavices un problema real.
 - No repitas con otras palabras lo que el autor acaba de decir. Él ya lo sabe.
@@ -622,7 +629,7 @@ VOCABULARIO: habla de narrativa (arco, motivación, tensión, ritmo, punto de gi
     const handlePurge = useCallback(async (drift: any, msgId: string) => {
         if (!drift?.chunkPath) return;
 
-        if(!confirm("¿CONFIRMAS LA PURGA?")) return;
+        if (!(await confirmDialog({ title: '¿Quitar este recuerdo?', message: 'Mira deja de usar ese fragmento. Tu archivo no se toca.', confirm: 'Quitar', danger: true }))) return;
 
         const toastId = toast.loading("Purgando eco...");
         setPurgingIds(prev => new Set(prev).add(msgId));

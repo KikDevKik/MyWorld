@@ -24,6 +24,8 @@ export async function aiText(opts: any): Promise<AiTextResult> {
     if (!key) throw new HttpsError("failed-precondition", "Para usar la IA gratis falta tu clave de Gemini. Agrégala en Ajustes → Config IA.");
     const system = (opts.system || []).map((b: any) => String(b?.text || "")).filter(Boolean).join("\n\n");
     const prompt = (opts.content || []).filter((c: any) => c?.type === "text").map((c: any) => String(c.text || "")).join("\n\n");
+    // Nov 2026: Gemini recibe una sola imagen por petición: la más reciente (la última del mensaje).
+    const lastImage = [...(opts.content || [])].reverse().find((c: any) => c?.type === "image" && c?.source?.data);
     const wantsJson = /SOLO (con )?(el )?JSON|ÚNICAMENTE con JSON|Responde SOLO JSON/i.test(prompt + system);
     try {
         const r = await smartGenerateContent(new GoogleGenerativeAI(key), prompt, {
@@ -34,6 +36,7 @@ export async function aiText(opts: any): Promise<AiTextResult> {
             maxOutputTokens: Math.max(Number(opts.maxTokens) || 4096, 4096),
             temperature: 0.6,
             jsonMode: wantsJson,
+            ...(lastImage ? { mediaPayload: { inlineData: { mimeType: lastImage.source.media_type, data: lastImage.source.data } } } : {}),
             contextLabel: `${opts.label || "AiText"}_Gemini`,
         });
         if (r.text) return { ok: true, text: r.text };

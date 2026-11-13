@@ -1545,11 +1545,11 @@ export const chatWithGem = onCall(
     let profileContext = '';
     if (profile.style || profile.inspirations || profile.rules) {
       profileContext = `
-=== USER WRITING PROFILE ===
-STYLE: ${profile.style || 'Not specified'}
-INSPIRATIONS: ${profile.inspirations || 'Not specified'}
-RULES: ${profile.rules || 'Not specified'}
-============================
+=== PERFIL DE ESCRITURA DEL AUTOR (lo escribió él en Ajustes) ===
+ESTILO: ${profile.style || 'sin especificar'}
+INSPIRACIONES: ${profile.inspirations || 'sin especificar'}
+REGLAS QUE PIDE: ${profile.rules || 'sin especificar'}
+=================================================================
 `;
       logger.info(`🎨 Profile injected for user ${userId}`);
     }
@@ -1577,10 +1577,9 @@ RULES: ${profile.rules || 'Not specified'}
 
       if (detectedPerspective !== "Neutral/Unknown") {
         perspectiveContext = `
-[PERSPECTIVE PROTOCOL - CRITICAL]:
-The user is writing in ${detectedPerspective}.
-You MUST write all narrative examples, suggestions, and rewritten scenes in ${detectedPerspective}.
-DO NOT switch perspective. If the user writes "I walked", do not reply with "He walked".
+[PERSONA NARRATIVA DEL TEXTO ABIERTO]:
+El texto abierto parece estar narrado en ${detectedPerspective === "FIRST PERSON (I/Me/Yo)" ? "primera persona" : "tercera persona"} (detección automática por conteo de pronombres: puede fallar).
+Si das un ejemplo breve, que vaya en esa misma persona. Si las «Decisiones del libro» de la memoria dicen otra cosa, mandan ellas; y si el texto y esas decisiones no coinciden, pregúntale al autor si es a propósito.
 `;
         logger.info(`👁️ Perspective Detected: ${detectedPerspective} (1st: ${firstPersonMatches}, 3rd: ${thirdPersonMatches})`);
       }
@@ -1991,6 +1990,9 @@ Antes de responder, analiza en un bloque <thinking> ... </thinking> qué dice el
 === PROTOCOLO DE CONTINUIDAD DE MYWORLD ===
 ROL: Acompañas al autor en su propia obra. No escribes por él: lees su canon y su texto, opinas con argumentos y le ayudas a decidir.
 
+[CANON, IDEA Y PROPUESTA]:
+Los archivos de la carpeta «Ideas (no canon)» y las notas de sesiones son ideas del autor, no hechos de su mundo: cuando las uses, dilo («en tu idea…, que aún no es canon»). Lo que propongas tú va dicho como propuesta tuya. Nunca presentes una idea o una propuesta como si ya fuera verdad en su historia.
+
 [IDIOMA Y TONO]:
 - Responde en el idioma en que escribe el autor (si la obra está en inglés, en inglés).
 - Respeta la terminología del mundo tal como aparece en el canon: nombres, lugares, términos propios.
@@ -2031,7 +2033,7 @@ Si un borrador contradice una ficha o un archivo de referencia, normalmente mand
         // 🟢 OMNISCIENT MODE: No longer exclusive — RAG already searches ALL user chunks.
         // We prioritize reference material in the response framing, but the AI can
         // cross-reference canon, characters and lore to give a complete answer.
-        finalSystemInstruction += "\n\n[MODO LABORATORIO - PRIORIDAD DE FUENTES]:\nEstás en modo Analista de Recursos. Cuando respondas, prioriza la información de los archivos de referencia y recursos adjuntos. SIN EMBARGO, puedes y DEBES cruzar esa información con el resto del canon del proyecto (personajes, facciones, lore) recuperado de la Memoria a Largo Plazo para dar respuestas completas y conectadas. No te limites solo a los archivos de referencia — eres un Co-escritor Omnisciente.";
+        finalSystemInstruction += "\n\n[MODO LABORATORIO - PRIORIDAD DE FUENTES]:\nEstás en modo Analista de Recursos. Cuando respondas, prioriza la información de los archivos de referencia y recursos adjuntos. SIN EMBARGO, puedes y DEBES cruzar esa información con el resto del canon del proyecto (personajes, facciones, lore) recuperado de la Memoria a Largo Plazo para dar respuestas completas y conectadas. No te limites solo a los archivos de referencia, y di siempre de qué archivo sale cada cosa.";
       }
 
       let activeContextSection = "";
@@ -2059,10 +2061,10 @@ ${contextText || "No se encontraron datos relevantes en la memoria."}
 
       const coAuthorInstruction = `
 [INSTRUCCIÓN]:
-Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero basa tus sugerencias profundas en la Memoria a Largo Plazo. Si el usuario pregunta algo, verifica si ya existe en la Memoria antes de inventar.
+La obra es del autor: tú la lees con él, no la escribes. Usa el Contexto Inmediato para la continuidad y apoya lo que digas en la Memoria a Largo Plazo. Antes de afirmar algo de su mundo, comprueba que esté en esos datos; si no está, dilo en vez de inventarlo.
 
 [NOTA DE INTERFAZ]:
-Si el usuario quiere insertar texto en su documento, puede usar el botón 'Insertar' disponible en la interfaz.
+Si el autor quiere llevar a su documento algo que él mismo dictó o un ejemplo tuyo para adaptarlo, tiene el botón «Insertar» en la interfaz. No lo ofrezcas para que copie prosa tuya.
       `;
 
       const promptFinal = `
