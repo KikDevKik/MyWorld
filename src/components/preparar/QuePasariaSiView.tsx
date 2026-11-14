@@ -6,10 +6,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Loader2, Sparkles, Bookmark, RotateCcw, BookOpen, Lightbulb, X, FileText, Paperclip, Palette, PencilLine, ChevronDown, Check, Flag } from 'lucide-react';
+import { Send, Loader2, Sparkles, Bookmark, RotateCcw, BookOpen, Lightbulb, X, FileText, Paperclip, Palette, PencilLine, ChevronDown, Check, Flag, MessagesSquare, Trash2, Landmark } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
-import { confirmDialog, promptDialog } from '../ui/confirmDialog';
+import { confirmDialog } from '../ui/confirmDialog';
+import { reportNotMine } from '../../services/notMine';
 import { DriveImage, rememberDriveImage, shrinkImage } from '../ui/DriveImage';
 
 interface ImgRef { id: string; name: string; mimeType?: string }
@@ -95,6 +96,9 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
     const [sheet, setSheet] = useState<Sheet | null>(null);
     const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
     const [dragging, setDragging] = useState(false);
+    const [chats, setChats] = useState<{ id: string; title: string; updatedAt: string; count: number }[]>([]);
+    const [switching, setSwitching] = useState(false);
+    const [canonPick, setCanonPick] = useState<{ folders: { id: string; path: string }[]; folderId: string; busy: boolean } | null>(null);
     const endRef = useRef<HTMLDivElement>(null);
     const taRef = useRef<HTMLTextAreaElement>(null);
     const fileRef = useRef<HTMLInputElement>(null);
@@ -114,6 +118,9 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
         callFunction<any>('whatIf', { mode: 'listIdeas', accessToken }).then(r => setIdeas(r?.ideas || [])).catch(() => {});
     };
     useEffect(loadIdeas, [accessToken]);
+
+    const loadChats = () => { callFunction<any>('whatIf', { mode: 'listChats' }).then(r => setChats(r?.chats || [])).catch(() => {}); };
+    useEffect(loadChats, []);
 
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length, thinking]);
 
@@ -225,40 +232,99 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
         }
     };
 
+    // «Nueva» ya no borra: la conversación actual queda en «Conversaciones» y se puede retomar.
     const reset = async () => {
-        if (!messages.length) return;
+        if (!messages.length || thinking || switching) return;
+        setSwitching(true);
+        try { await callFunction('whatIf', { mode: 'reset' }); setMessages([]); loadChats(); toast.success('La anterior quedó en Conversaciones.'); }
+        catch { toast.error('No pude empezar una nueva.'); }
+        finally { setSwitching(false); }
+    };
+
+    const openChat = async (id: string) => {
+        if (thinking || switching) return;
+        setSwitching(true);
+        try { const r = await callFunction<any>('whatIf', { mode: 'openChat', id }); setMessages(r?.messages || []); setIdeasOpen(false); loadChats(); }
+        catch (e: any) { toast.error(e?.message || 'No pude abrir esa conversación.'); }
+        finally { setSwitching(false); }
+    };
+
+    const deleteChat = async (c: { id: string; title: string }) => {
         const ok = await confirmDialog({
-            title: '¿Empezar una conversación nueva?',
-            message: 'Esta conversación se borra. Las ideas que ya guardaste siguen en Recursos → Ideas (no canon), con sus imágenes.',
-            confirm: 'Empezar de nuevo',
-            cancel: 'Seguir en esta',
+            title: '¿Borrar esta conversación?',
+            message: `«${c.title}» se borra para siempre. Las ideas que guardaste desde ella siguen en Recursos → Ideas (no canon).`,
+            confirm: 'Borrar',
+            cancel: 'Conservarla',
+            danger: true,
         });
         if (!ok) return;
-        try { await callFunction('whatIf', { mode: 'reset' }); setMessages([]); } catch { toast.error('No pude reiniciar.'); }
+        try { await callFunction('whatIf', { mode: 'deleteChat', id: c.id }); setChats(cs => cs.filter(x => x.id !== c.id)); }
+        catch { toast.error('No pude borrarla.'); }
     };
 
     // «Esto no es mío»: el autor dice qué inventó o entendió mal la IA. Queda guardado para todas las herramientas.
-    const notMine = async () => {
-        const text = await promptDialog({
-            title: '¿Qué no era tuyo?',
-            message: 'Cuéntame en una línea qué inventé o entendí mal. Lo recuerdo para no repetirlo, aquí y en las demás herramientas.',
-            placeholder: 'Nunca dije que tuviera cola',
-            confirm: 'Guardar corrección',
-        });
-        if (!text || !text.trim()) return;
-        try { await callFunction('whatIf', { mode: 'correct', text: text.trim() }); toast.success('Anotado. No lo repito.'); }
-        catch (e: any) { toast.error(e?.message || 'No pude guardar la corrección.'); }
-    };
+    const notMine = () => reportNotMine('ideas');
 
     const toggleRef = (id: string) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : (s.length >= 3 ? (toast.info('Hasta 3 fuentes a la vez.'), s) : [...s, id]));
     const matches = (r: RefFile) => !refFilter || r.name.toLowerCase().includes(refFilter.toLowerCase()) || r.path.toLowerCase().includes(refFilter.toLowerCase());
     const shownRefs = refs.filter(matches);
     const shownCanon = canonRefs.filter(matches);
     const allRefs = useMemo(() => [...canonRefs, ...refs], [canonRefs, refs]);
+    useEffect(() => { setCanonPick(null); }, [sheet?.id]);
+
+    // «Pasar al canon»: decisión explícita del autor. Copia la nota (sin la conversación) a la carpeta del canon que elija.
+    const startToCanon = async () => {
+        try {
+            const r = await callFunction<any>('whatIf', { mode: 'canonFolders' });
+            const folders = r?.folders || [];
+            if (!folders.length) { toast.error('No encontré carpetas del canon. Revisa tu proyecto en Ajustes.'); return; }
+            setCanonPick({ folders, folderId: folders[0].id, busy: false });
+        } catch { toast.error('No pude leer tus carpetas.'); }
+    };
+    const confirmToCanon = async () => {
+        if (!sheet || !canonPick) return;
+        const path = canonPick.folders.find(f => f.id === canonPick.folderId)?.path || 'esa carpeta';
+        const ok = await confirmDialog({
+            title: '¿Pasar esta idea al canon?',
+            message: `Se crea una copia de «${sheet.name}» en ${path}, sin la conversación y marcada como canon. Desde ahí cuenta como verdad de tu historia para todas las herramientas. La idea original sigue en Recursos → Ideas.`,
+            confirm: 'Pasar al canon',
+            cancel: 'Todavía no',
+        });
+        if (!ok) return;
+        setCanonPick(c => (c ? { ...c, busy: true } : c));
+        try {
+            const r = await callFunction<any>('whatIf', { mode: 'toCanon', id: sheet.id, folderId: canonPick.folderId, accessToken }, { timeout: 60000 });
+            setCanonPick(null);
+            toast.success(`Ya está en el canon: ${r?.path || path}.`, onOpenFile && r?.fileId ? { action: { label: 'Abrir', onClick: () => { setSheet(null); onOpenFile(r.fileId); } } } : undefined);
+        } catch (e: any) {
+            toast.error(e?.message || 'No pude pasarla al canon.');
+            setCanonPick(c => (c ? { ...c, busy: false } : c));
+        }
+    };
+
     const parsed = useMemo(() => (sheet?.content ? parseIdeaNote(sheet.content) : null), [sheet?.content]);
 
     const ideasList = (
         <>
+            {!!chats.length && (
+                <div className="mb-5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-titanium-400"><MessagesSquare size={12} aria-hidden="true" /> Conversaciones</p>
+                    <ul className="mt-2 space-y-0.5">
+                        {chats.map(c => (
+                            <li key={c.id} className="group flex items-center gap-1">
+                                <button onClick={() => openChat(c.id)} disabled={switching || thinking} title={c.updatedAt ? `Última vez: ${fmtDate(c.updatedAt)}` : undefined}
+                                    className="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left text-[12.5px] text-titanium-300 hover:bg-titanium-800/60 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
+                                    <span className="block truncate">{c.title}</span>
+                                </button>
+                                <button onClick={() => deleteChat(c)} aria-label={`Borrar «${c.title}»`}
+                                    className="shrink-0 rounded p-1.5 text-titanium-500 opacity-60 hover:opacity-100 hover:text-red-300 hover:bg-titanium-800/60 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100">
+                                    <Trash2 size={12} aria-hidden="true" />
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-titanium-400"><Bookmark size={12} aria-hidden="true" /> Ideas guardadas</p>
             {!ideas.length ? (
                 <p className="mt-2 text-[12px] leading-relaxed text-titanium-500">Aún no hay. Usa «Guardar como idea» debajo de una respuesta.</p>
@@ -292,7 +358,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                     <button onClick={() => setIdeasOpen(true)} className="ml-auto lg:hidden shrink-0 inline-flex items-center gap-1 rounded px-2 py-1.5 text-titanium-300 hover:text-titanium-50 hover:bg-titanium-800/60">
                         <Bookmark size={12} aria-hidden="true" /> Guardadas{ideas.length ? ` (${ideas.length})` : ''}
                     </button>
-                    <button onClick={reset} disabled={!messages.length} className="lg:ml-auto shrink-0 inline-flex items-center gap-1 rounded px-2 py-1.5 text-titanium-300 hover:text-titanium-50 hover:bg-titanium-800/60 disabled:opacity-30">
+                    <button onClick={reset} disabled={!messages.length || switching || thinking} title="La conversación actual queda guardada en Conversaciones" className="lg:ml-auto shrink-0 inline-flex items-center gap-1 rounded px-2 py-1.5 text-titanium-300 hover:text-titanium-50 hover:bg-titanium-800/60 disabled:opacity-30">
                         <RotateCcw size={12} aria-hidden="true" /> Nueva
                     </button>
                 </div>
@@ -504,8 +570,27 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                                 )}
                             </div>
                         </div>
+                        {canonPick && (
+                            <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-amber-900/40 bg-amber-950/10 px-5 py-3">
+                                <label htmlFor="mw-canon-folder" className="text-[12px] text-amber-100/85">¿En qué carpeta del canon?</label>
+                                <select id="mw-canon-folder" value={canonPick.folderId} disabled={canonPick.busy}
+                                    onChange={e => setCanonPick(c => (c ? { ...c, folderId: e.target.value } : c))}
+                                    className="min-w-0 flex-1 rounded-md border border-titanium-700 bg-titanium-950 px-2 py-1.5 text-[12.5px] text-titanium-100">
+                                    {canonPick.folders.map(f => <option key={f.id} value={f.id}>{f.path}</option>)}
+                                </select>
+                                <button onClick={confirmToCanon} disabled={canonPick.busy} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-[12.5px] font-medium text-titanium-950 hover:bg-amber-500 disabled:opacity-50">
+                                    {canonPick.busy ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Landmark size={13} aria-hidden="true" />} Pasar al canon
+                                </button>
+                                <button onClick={() => setCanonPick(null)} disabled={canonPick.busy} className="rounded-md px-2 py-1.5 text-[12.5px] text-titanium-400 hover:text-titanium-100">Cancelar</button>
+                            </div>
+                        )}
                         <footer className="flex shrink-0 items-center gap-3 border-t border-titanium-800 px-5 py-3">
                             <p className="min-w-0 flex-1 truncate text-[11.5px] text-titanium-500">Vive en tu Drive: Recursos → Ideas (no canon). También la ves en Obsidian.</p>
+                            {!canonPick && !sheet.loading && (
+                                <button onClick={startToCanon} title="Copia esta nota a una carpeta del canon. Solo si tú lo decides." className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-[12.5px] text-amber-200/90 hover:bg-amber-900/20">
+                                    <Landmark size={13} aria-hidden="true" /> Pasar al canon
+                                </button>
+                            )}
                             {onOpenFile && (
                                 <button onClick={() => { const id = sheet.id; setSheet(null); onOpenFile(id); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-titanium-700 px-3 py-2 text-[12.5px] text-titanium-100 hover:bg-titanium-800">
                                     <PencilLine size={13} aria-hidden="true" /> Editarla

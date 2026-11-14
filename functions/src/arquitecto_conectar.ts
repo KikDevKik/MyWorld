@@ -8,7 +8,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
 import { TaskType } from "./utils/genai";
 import { HttpsError } from "firebase-functions/v2/https";
-import { callClaude, claudeEnabledForCurrentUser, CLAUDE_SONNET, MYWORLD_VOICE } from "./utils/claude_router";
+import { callClaude, claudeEnabledForCurrentUser, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { GoogleGenerativeAI } from "./utils/genai";
@@ -273,6 +273,42 @@ async function sessionHistory(uid: string, sessionId: string, limit = 16): Promi
         }).join("\n\n");
 }
 
+// Nov 2026: la respuesta solo ve los últimos 12 mensajes. Lo anterior no se pierde: cada 6 respuestas se resume
+// (con Haiku, barato) lo que quedó fuera de esa ventana, sumado al resumen anterior.
+const WINDOW = 12;
+const SUMMARY_EVERY = 6;
+const SUMMARY_TASK = `Resume para el Arquitecto lo que pasó ANTES en esta conversación con el autor, para que no lo olvide.
+Escribe en español, en frases cortas, máximo 1.400 caracteres. Incluye, si aparecen: qué libro y qué capítulo se trabajaba;
+lo que el autor DECIDIÓ (con sus palabras cuando importen); lo que descartó y por qué; dudas que siguen abiertas;
+datos que el autor dio de su historia. No inventes ni interpretes: si algo no está claro en los mensajes, no lo pongas.
+Si hay un resumen anterior, intégralo: lo que cambió después manda sobre lo de antes. Sin título ni introducción.`;
+
+async function olderMessages(uid: string, sessionId: string): Promise<string> {
+    const snap = await getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId)
+        .collection("messages").orderBy("timestamp", "desc").limit(WINDOW + 30).get();
+    return snap.docs.slice(WINDOW).reverse()
+        .filter(d => (d.data() as any).role !== "system")
+        .map(d => { const m: any = d.data(); return `${m.role === "user" ? "AUTOR" : "ARQUITECTO"}: ${String(m.text || "").slice(0, 1200)}`; })
+        .join("\n\n");
+}
+
+async function refreshSummary(uid: string, sessionId: string, previous: string, turns: number): Promise<void> {
+    if (!claudeEnabledForCurrentUser()) return;
+    const older = await olderMessages(uid, sessionId);
+    if (!older) return;
+    const r = await callClaude({
+        model: CLAUDE_HAIKU,
+        system: [{ text: SUMMARY_TASK }],
+        content: [{ type: "text", text: `${previous ? `RESUMEN ANTERIOR:\n${previous}\n\n` : ""}MENSAJES QUE YA NO ENTRAN EN LA VENTANA:\n${older}` }],
+        maxTokens: 700,
+        label: "ArquitectoResumen",
+    } as any);
+    if (r.ok && r.text) {
+        await getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId)
+            .set({ resumen: r.text.trim().slice(0, 1800), resumenTurn: turns }, { merge: true });
+    }
+}
+
 async function ask(contextBlocks: string[], instruction: string, label: string, maxTokens = 3000, stable = "", apiKey = ""): Promise<string> {
     if (!claudeEnabledForCurrentUser()) return askGemini(contextBlocks, instruction, label, maxTokens, stable, apiKey);
     // Nov 2026: el material del libro en foco no cambia entre mensajes: va primero y con caché de 1 h (1/10 del precio).
@@ -340,7 +376,7 @@ function sharedNames(shared: string): string[] {
 /** Respuesta a un mensaje en una sesión «Conectar». */
 export async function conectarReply(uid: string, sessionId: string, goal: string, query: string, apiKey: string, sharedDocs: string[] = []): Promise<string> {
     // Nov 2026 (gasto): 12 mensajes de historial (la agenda y la memoria guardan lo anterior).
-    const history = await sessionHistory(uid, sessionId, 12);
+    const history = await sessionHistory(uid, sessionId, WINDOW);
     const hint = `${query} ${history.slice(-1200)}`;
     await noteAuthorMessage(uid, "arquitecto", query);
     const [memory, elsewhere, shared, focus, craft, plan] = await Promise.all([
@@ -374,6 +410,7 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
         craft,
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES DE SU MATERIAL:\n${material}` : "",
+        sdata.resumen ? `LO QUE PASÓ ANTES EN ESTA SESIÓN (resumen de los mensajes que ya no ves; lo decidido después en la conversación manda):\n${sdata.resumen}` : "",
         history ? `CONVERSACIÓN HASTA AHORA:\n${history}` : "",
         agenda.length ? `AGENDA ACTUAL DE LA SESIÓN (respuesta n.º ${turns}):\n${agenda.map(p => `- [${p.e}] ${p.t}`).join("\n")}` : `AGENDA: todavía no hay (respuesta n.º ${turns}); ármala.`,
     ], `AUTOR: ${query}\n\n${CRAFT_RULE}\n\n${AGENDA_RULE}`, "ArquitectoConectar", 3000, stable, apiKey);
@@ -387,6 +424,9 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
         for (const p of out.agenda.filter(p => p.e === "hecho" && !wasDone.has(p.t)).slice(0, 3)) await noteDecision(uid, "arquitecto", `Quedó resuelto con el Arquitecto el punto «${p.t}» (libro: ${goal ? goal.slice(0, 80) : "sin objetivo anotado"})`);
     }
     await sref.set({ turns, ...(out.agenda ? { agenda: out.agenda } : {}), agendaCerrar: out.cerrar }, { merge: true });
+    if (turns * 2 > WINDOW && turns - Number(sdata.resumenTurn || 0) >= SUMMARY_EVERY) {
+        await refreshSummary(uid, sessionId, String(sdata.resumen || ""), turns).catch(e => logger.warn(`[CONECTAR] Resumen no actualizado: ${e?.message}`));
+    }
     return out.text;
 }
 

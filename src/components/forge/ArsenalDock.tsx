@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, DraftingCompass, FileSearch, FolderOpen } from 'lucide-react';
 import { useLayoutStore } from '../../stores/useLayoutStore';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
@@ -38,6 +38,13 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     // Oct 2026: el Tribunal y el Guardián ya no son botones sueltos: viven dentro del Reporte.
     // Oct 2026: Nexus, Forja y Laboratorio viven dentro de Preparar (botón del Arquitecto).
     const DOCK_GEMS: GemId[] = ['director', 'arquitecto', 'imprenta'];
+    // Nov 2026: si Mira se quedó dormida en el escritorio, su icono lo muestra (en el celular no se dibuja sobre el texto).
+    const [miraPose, setMiraPose] = useState<string>(() => (window as any).__miraPose || 'neutral');
+    useEffect(() => {
+        const on = (e: Event) => setMiraPose(String((e as CustomEvent).detail || 'neutral'));
+        window.addEventListener('mira-pose', on);
+        return () => window.removeEventListener('mira-pose', on);
+    }, []);
 
     // Función auxiliar para elegir el icono correcto según la ID de la Gem
     const getIcon = (id: string) => {
@@ -110,6 +117,9 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                         >
                             <div className="relative z-10">
                                 {getIcon(gemId)}
+                                {gemId === 'director' && miraPose === 'dormida' && (
+                                    <span aria-hidden="true" className="absolute -right-2 -top-2 font-mono text-[10px] font-bold leading-none text-mira motion-safe:animate-pulse">zZ</span>
+                                )}
                             </div>
                             {narrow && <NarrowLabel text={gemId === 'director' ? 'Mira' : gemId === 'arquitecto' ? (es ? 'Mesa' : 'Table') : (es ? 'Imprenta' : 'Press')} />}
 

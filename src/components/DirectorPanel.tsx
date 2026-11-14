@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Send, Loader2, LayoutTemplate, RefreshCcw, AlertCircle } from 'lucide-react';
+import { X, Send, Loader2, LayoutTemplate, RefreshCcw, AlertCircle, Flag } from 'lucide-react';
+import { reportNotMine } from '../services/notMine';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { SessionManagerModal } from './SessionManagerModal';
 // 🟢 LAZY LOAD: Break Circular Dependency
@@ -285,6 +286,16 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 </div>
 
                 <div className="flex gap-1">
+                    {currentLanguage === 'es' && (
+                        <button
+                            onClick={() => reportNotMine('mira')}
+                            className="p-2 text-titanium-400 hover:text-amber-300 transition-colors rounded-lg hover:bg-titanium-800"
+                            title="Esto no es mío: dime qué inventé o entendí mal"
+                            aria-label="Esto no es mío"
+                        >
+                            <Flag size={17} aria-hidden="true" />
+                        </button>
+                    )}
                     <button
                         onClick={() => setIsSessionManagerOpen(true)}
                         className="p-2 text-titanium-400 hover:text-mira transition-colors rounded-lg hover:bg-titanium-800"

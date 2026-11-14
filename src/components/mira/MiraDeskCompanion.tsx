@@ -63,6 +63,12 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
     const tips = useMemo(() => getTips(lang), [lang]);
     const [prefs, setPrefs] = useState<MiraPrefs>(getMiraPrefs);
     const [pose, setPose] = useState<MiraPose>('neutral');
+    // Nov 2026: en el celular Mira no se dibuja sobre el texto; su icono de la barra de abajo muestra si duerme.
+    useEffect(() => {
+        (window as any).__miraPose = pose;
+        window.dispatchEvent(new CustomEvent('mira-pose', { detail: pose }));
+    }, [pose]);
+    useEffect(() => () => { (window as any).__miraPose = 'neutral'; window.dispatchEvent(new CustomEvent('mira-pose', { detail: 'neutral' })); }, []);
     const [bubble, setBubble] = useState<Bubble | null>(null);
     const [bubbleChars, setBubbleChars] = useState(0);
     const [menu, setMenu] = useState(false);
@@ -190,6 +196,10 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
 
             {/* Nov 2026: en el celular Mira no se dibuja sobre el texto (tapaba palabras); quedan solo sus avisos. */}
             <div className="absolute right-3 max-lg:left-3 lg:right-5 bottom-12 z-30 flex items-end justify-end gap-2 pointer-events-none">
+                {bubble && (
+                    // En el celular, su cara junto al globo: así se sabe que habla Mira sin taparte el texto cuando calla.
+                    <img src="/assets/mira/mira_cara_icono.png" alt="" aria-hidden="true" width={32} height={32} className="lg:hidden w-8 h-8 self-end mb-2 mira-rim shrink-0 pointer-events-none" draggable={false} />
+                )}
                 {bubble && (
                     <div className={`pointer-events-auto mb-2 lg:mb-16 ${bubble.arrival ? 'max-w-[340px]' : 'max-w-[290px]'} transition-opacity duration-300`} style={{ opacity: bubble.rest || bubble.arrival ? 1 : Math.max(0.35, 1 - bubbleChars / 16) }}>
                         <MiraBubble title={bubble.title} tail="right" live>

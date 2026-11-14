@@ -122,6 +122,35 @@ function sessionRef(uid: string) {
     return getFirestore().collection("users").doc(uid).collection("whatif").doc("session");
 }
 
+// Nov 2026: varias conversaciones. La activa sigue en whatif/session; las demás quedan guardadas en whatif_chats.
+function chatsCol(uid: string) {
+    return getFirestore().collection("users").doc(uid).collection("whatif_chats");
+}
+
+/** Título de una conversación: la última línea «Idea: …» de la IA, o el comienzo del primer mensaje del autor. */
+function chatTitle(messages: Msg[]): string {
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.role !== "assistant") continue;
+        const t = String(m.text || "").match(/\n?\s*\**Idea:\**\s*(.+?)\**\s*$/);
+        if (t) return t[1].replace(/^[«"]|[»".]$/g, "").trim().slice(0, 80);
+    }
+    const first = messages.find(m => m.role === "user" && m.text)?.text || "Conversación sin título";
+    const clean = first.replace(/\s+/g, " ").trim();
+    return clean.length > 60 ? clean.slice(0, 60).replace(/\s+\S*$/, "") + "…" : clean;
+}
+
+/** Guarda la conversación activa entre las guardadas (si tiene algo) y devuelve su id. */
+async function archiveActive(uid: string): Promise<string | null> {
+    const snap = await sessionRef(uid).get();
+    const d: any = snap.data() || {};
+    const messages: Msg[] = Array.isArray(d.messages) ? d.messages : [];
+    if (!messages.length) return null;
+    const ref = d.chatId ? chatsCol(uid).doc(String(d.chatId)) : chatsCol(uid).doc();
+    await ref.set({ messages, title: chatTitle(messages), count: messages.length, updatedAt: d.updatedAt || new Date().toISOString() });
+    return ref.id;
+}
+
 async function referenceList(uid: string): Promise<{ id: string; name: string; path: string }[]> {
     const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").where("category", "==", "reference").limit(200).get();
     return snap.docs
@@ -296,13 +325,43 @@ export const whatIf = onCall(
         if (mode === "correct") {
             const text = String(request.data?.text || "").trim();
             if (text.length < 4) throw new HttpsError("invalid-argument", "Cuéntame qué fue lo que no dijiste.");
-            await addCorrections(uid, "ideas", [`El autor corrigió en Ideas: «${text.slice(0, 280)}»`]);
+            // Nov 2026: el mismo botón «Esto no es mío» vive en Ideas, Mira y el Arquitecto.
+            const tool = (["mira", "arquitecto"] as const).find(t => t === request.data?.tool) || "ideas";
+            const where = tool === "mira" ? "con Mira" : tool === "arquitecto" ? "en el Arquitecto" : "en Ideas";
+            await addCorrections(uid, tool, [`El autor corrigió ${where}: «${text.slice(0, 280)}»`]);
             return { ok: true };
         }
 
+        // «Nueva»: la conversación actual no se borra, queda guardada en «Conversaciones».
         if (mode === "reset") {
+            await archiveActive(uid);
             await ref.set({ messages: [], updatedAt: new Date().toISOString() });
             return { messages: [] };
+        }
+
+        if (mode === "listChats") {
+            const snap = await chatsCol(uid).orderBy("updatedAt", "desc").limit(40).get();
+            return { chats: snap.docs.map(d => ({ id: d.id, title: String((d.data() as any).title || "Conversación"), updatedAt: (d.data() as any).updatedAt || "", count: Number((d.data() as any).count || 0) })) };
+        }
+
+        if (mode === "openChat") {
+            const id = String(request.data?.id || "");
+            if (!id) throw new HttpsError("invalid-argument", "Falta la conversación.");
+            const target = await chatsCol(uid).doc(id).get();
+            if (!target.exists) throw new HttpsError("not-found", "No encontré esa conversación.");
+            await archiveActive(uid);
+            const t: any = target.data() || {};
+            const messages: Msg[] = Array.isArray(t.messages) ? t.messages : [];
+            await ref.set({ messages, chatId: id, updatedAt: t.updatedAt || new Date().toISOString() });
+            await chatsCol(uid).doc(id).delete();
+            return { messages };
+        }
+
+        if (mode === "deleteChat") {
+            const id = String(request.data?.id || "");
+            if (!id) throw new HttpsError("invalid-argument", "Falta la conversación.");
+            await chatsCol(uid).doc(id).delete();
+            return { ok: true };
         }
 
         if (mode === "listIdeas") {
@@ -424,7 +483,7 @@ export const whatIf = onCall(
             const now = new Date().toISOString();
             const userMsg: Msg = { role: "user", text: message, at: now, ...(saved.length ? { images: saved } : {}) };
             const messages = [...history, userMsg, { role: "assistant" as const, text: r.text.trim(), at: now }].slice(-MAX_SAVED);
-            await ref.set({ messages, updatedAt: now });
+            await ref.set({ messages, updatedAt: now }, { merge: true });
             return { messages };
         }
 
@@ -537,6 +596,48 @@ export const whatIf = onCall(
             if (!folder || !(meta.data.parents || []).includes(folder.id)) throw new HttpsError("permission-denied", "Esa nota no está en tus ideas.");
             const content = String(await _getDriveFileContentInternal(drive, id) || "");
             return { id, name: String(meta.data.name || "").replace(/\.md$/i, ""), modifiedTime: meta.data.modifiedTime, content };
+        }
+
+        // Carpetas del canon, para elegir dónde va una idea que el autor decide pasar al canon.
+        if (mode === "canonFolders") {
+            const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category", "type", "mimeType").limit(800).get();
+            const folders = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+                .filter((f: any) => (f.type === "folder" || f.mimeType === FOLDER) && f.category !== "reference")
+                .map((f: any) => ({ id: f.id, path: String(f.path || f.name || "") }))
+                .sort((x, y) => x.path.localeCompare(y.path, "es"));
+            return { folders };
+        }
+
+        // «Pasar al canon»: solo por decisión explícita del autor. Se crea una COPIA en la carpeta del canon que él elige,
+        // sin la conversación plegada y marcada como canon; la idea original sigue en Recursos → Ideas.
+        if (mode === "toCanon") {
+            if (!accessToken) throw new HttpsError("failed-precondition", "Falta la conexión con Drive. Recarga la página.");
+            const id = String(request.data?.id || "");
+            const folderId = String(request.data?.folderId || "");
+            if (!id || !folderId) throw new HttpsError("invalid-argument", "Elige la nota y la carpeta del canon.");
+            const drive = drv(accessToken);
+            const folder = await findIdeasFolder(drive, uid, false);
+            const meta = await drive.files.get({ fileId: id, fields: "id,name,parents" });
+            if (!folder || !(meta.data.parents || []).includes(folder.id)) throw new HttpsError("permission-denied", "Esa nota no está en tus ideas.");
+            const target: any = (await getFirestore().collection("TDB_Index").doc(uid).collection("files").doc(folderId).get()).data();
+            if (!target || target.category === "reference" || !(target.type === "folder" || target.mimeType === FOLDER)) {
+                throw new HttpsError("invalid-argument", "Esa carpeta no es del canon.");
+            }
+            const today = new Date().toISOString().slice(0, 10);
+            let content = String(await _getDriveFileContentInternal(drive, id) || "");
+            content = content.replace(/\n*> \[!quote\]- Conversación completa[\s\S]*$/, "\n");
+            content = /^---\n[\s\S]*?\ncanon: no\n/.test(content)
+                ? content.replace(/\ncanon: no\n/, `\ncanon: sí\npaso_al_canon: ${today}\n`)
+                : content;
+            const name = String(meta.data.name || "Idea.md");
+            const made = await drive.files.create({
+                requestBody: { name, mimeType: "text/markdown", parents: [folderId] },
+                media: { mimeType: "text/markdown", body: content.trimEnd() + "\n" },
+                fields: "id,name",
+            });
+            await noteDecision(uid, "ideas", `Pasó al canon la idea «${name.replace(/\.md$/i, "")}» (${String(target.path || target.name || "")})`).catch(() => {});
+            logger.info(`💡 [WHATIF] Idea pasada al canon: ${name} → ${target.path || folderId}`);
+            return { fileId: made.data.id, name: String(made.data.name || name).replace(/\.md$/i, ""), path: String(target.path || target.name || "") };
         }
 
         throw new HttpsError("invalid-argument", "Modo desconocido.");

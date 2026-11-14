@@ -15,10 +15,13 @@ export const CACHE_SPLIT = "\n<<<MW_CACHE_SPLIT>>>\n";
 export const CLAUDE_HAIKU = "claude-haiku-5-5";
 export const CLAUDE_SONNET = "claude-sonnet-5-5";
 
-// USD por millón de tokens (docs oficiales, oct 2026)
+// USD por millón de tokens (docs oficiales, verificados el 14 nov 2026). Haiku cobra 5x con prompts de más de 100k tokens.
+// Opus y Fable no los usa la beta, pero están para que su gasto cuente si algún día se llaman (sin precio no se registra nada).
 const PRICES: Record<string, { in: number; out: number; cacheWrite: number; cacheRead: number }> = {
     [CLAUDE_HAIKU]: { in: 0.10, out: 0.50, cacheWrite: 0.125, cacheRead: 0.01 },
     [CLAUDE_SONNET]: { in: 2, out: 10, cacheWrite: 2.5, cacheRead: 0.10 }, // lectura de caché 0.05x en Sonnet 5.5
+    "claude-opus-5-5": { in: 4, out: 20, cacheWrite: 5, cacheRead: 0.20 },
+    "claude-fable-5-2": { in: 8, out: 40, cacheWrite: 10, cacheRead: 0.20 },
 };
 
 // Por encima de este tamaño (≈30k tokens) la conversación usa Haiku para no gastar de más.

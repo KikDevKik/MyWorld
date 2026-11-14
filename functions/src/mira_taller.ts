@@ -16,6 +16,9 @@ import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
 import { applyMemoryOps, getMemoryContext, memoryCol, slugify } from "./utils/memory_store";
 import { craftCol, craftId, saveCraft } from "./craft";
+import { MYWORLD_VOICE } from "./utils/claude_router";
+import { sharedContext } from "./utils/shared_context";
+import { getRequestUid } from "./utils/request_context";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
@@ -48,7 +51,11 @@ const MIRA = `Eres Mira, la compañera de escritura de MyWorld: cercana, honesta
 
 async function generate(requestData: any, prompt: string, label: string) {
     const genAI = new GoogleGenerativeAI(getAIKey(requestData, googleApiKey.value()));
-    const r = await smartGenerateContent(genAI, prompt, { _tier: getTier(requestData), taskType: "standard", jsonMode: true, temperature: 0.7, contextLabel: label });
+    // Nov 2026: el Taller habla con la misma voz que las demás herramientas y conoce las correcciones del autor.
+    const uid = getRequestUid();
+    const shared = uid ? await sharedContext(uid, "estudio").catch(() => "") : "";
+    const systemInstruction = MYWORLD_VOICE + "\n(Esta voz aplica al texto que va dentro de cada campo del JSON.)" + (shared ? "\n\n" + shared : "");
+    const r = await smartGenerateContent(genAI, prompt, { _tier: getTier(requestData), taskType: "standard", jsonMode: true, temperature: 0.7, contextLabel: label, systemInstruction });
     if (!r.text) throw new HttpsError("unavailable", "Mira no pudo responder ahora. Intenta en un momento.");
     const parsed = parseSecureJSON(r.text, label);
     if (!parsed || parsed.error) throw new HttpsError("internal", "Mira se enredó con la respuesta. Intenta otra vez.");

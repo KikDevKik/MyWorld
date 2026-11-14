@@ -1,7 +1,8 @@
 import { confirmDialog } from './ui/confirmDialog';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MiraSprite } from './mira/MiraSprite';
-import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks, SpellCheck, LayoutGrid } from 'lucide-react';
+import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks, SpellCheck, LayoutGrid, Flag } from 'lucide-react';
+import { reportNotMine } from '../services/notMine';
 import { callFunction } from '../services/api';
 import { getFirestore, doc as fsDoc, onSnapshot } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -530,6 +531,15 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             <SpellCheck size={15} aria-hidden="true" className="text-mira" />
                             <span className="hidden sm:inline">Revisar el canon</span><span className="sm:hidden">Revisar</span>
                             {openNames > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-mira text-titanium-950 text-xs font-bold inline-flex items-center justify-center tabular-nums">{openNames}</span>}
+                        </button>
+                    )}
+                    {panelView === 'chat' && currentLanguage !== 'en' && (
+                        <button
+                            onClick={() => reportNotMine('arquitecto')}
+                            className="mr-3 inline-flex items-center gap-1 text-titanium-400 hover:text-amber-300 text-[13px] transition-colors"
+                            title="Dime qué inventé o entendí mal; lo recuerdo en todas las herramientas"
+                        >
+                            <Flag size={13} aria-hidden="true" /> <span className="hidden sm:inline">Esto no es mío</span>
                         </button>
                     )}
                     {panelView === 'chat' && (

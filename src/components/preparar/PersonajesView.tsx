@@ -6,7 +6,7 @@ import { confirmDialog } from '../ui/confirmDialog';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Users, ScanSearch, Loader2, FileText, Ghost, Anchor, Send, RotateCcw, Wand2, X, Check, AlertTriangle, HelpCircle, Search, FilePlus2 } from 'lucide-react';
+import { Users, ScanSearch, Loader2, FileText, Ghost, Anchor, Send, RotateCcw, Wand2, X, Check, AlertTriangle, HelpCircle, Search, FilePlus2, Lightbulb, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAuth } from 'firebase/auth';
 import { callFunction } from '../../services/api';
@@ -97,7 +97,15 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
     const [input, setInput] = useState('');
     const [prop, setProp] = useState<Propuesta | null>(null);
     const [editMode, setEditMode] = useState(false);
+    const [ideas, setIdeas] = useState<{ id: string; name: string }[]>([]);
     const endRef = useRef<HTMLDivElement>(null);
+
+    // Nov 2026: las ideas y hojas de diseño (no canon) que nombran al personaje se enlazan desde su ficha.
+    // Solo lectura: abrir una no la vuelve canon.
+    useEffect(() => {
+        if (!accessToken) return;
+        callFunction<any>('whatIf', { mode: 'listIdeas', accessToken }).then(r => setIdeas(r?.ideas || [])).catch(() => {});
+    }, [accessToken]);
 
     // Nov 2026: la lista llegaba en 5 a 20 s (arranque en frío). Se muestra la última conocida mientras llega la nueva.
     const CACHE_KEY = `mw-personajes-cache-${getAuth().currentUser?.uid || 'anon'}`;
@@ -288,6 +296,29 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                             </header>
 
                             {cur.fichaFileId && <FichaBlock fileId={cur.fichaFileId} name={cur.nombre} accessToken={accessToken} />}
+
+                            {(() => {
+                                const names = [cur.nombre, ...cur.alias].map(n => n.trim().toLowerCase()).filter(n => n.length >= 3);
+                                const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                const re = names.length ? new RegExp(`(^|[^\\p{L}])(${names.map(esc).join('|')})([^\\p{L}]|$)`, 'iu') : null;
+                                const mine = re ? ideas.filter(i => re.test(i.name)) : [];
+                                if (!mine.length) return null;
+                                return (
+                                    <div className="rounded-xl border border-amber-900/40 bg-amber-950/10 p-4">
+                                        <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-300/80"><Lightbulb size={12} aria-hidden="true" /> Ideas y diseños · no canon</p>
+                                        <p className="mt-1 text-[11.5px] text-titanium-500">Viven en Recursos → Ideas. Abrirlas no las vuelve canon: lo que quieras conservar, pásalo tú a la ficha.</p>
+                                        <ul className="mt-2 flex flex-wrap gap-1.5">
+                                            {mine.slice(0, 8).map(i => (
+                                                <li key={i.id}>
+                                                    <button onClick={() => onOpenFile?.(i.id)} className="inline-flex items-center gap-1.5 rounded-md border border-amber-800/40 px-2.5 py-1 text-[11.5px] text-amber-100/85 hover:bg-amber-900/20">
+                                                        {/^diseño\b/i.test(i.name) ? <Palette size={12} aria-hidden="true" /> : <FileText size={12} aria-hidden="true" />} {i.name}
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Revisión */}
                             <div className="rounded-xl border border-titanium-800 bg-titanium-950/40 p-4">

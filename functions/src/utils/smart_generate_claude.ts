@@ -34,8 +34,8 @@ export const CLAUDE_MODELS = {
     maximum: {
         id:          'claude-fable-5-2',
         label:       'Fable 5.2',
-        inputCost:   10,
-        outputCost:  50,
+        inputCost:   8,
+        outputCost:  40,
         description: 'Casos extremos — máxima capacidad disponible',
         usageHint:   '~$0.10–0.30 por sesión',
     },

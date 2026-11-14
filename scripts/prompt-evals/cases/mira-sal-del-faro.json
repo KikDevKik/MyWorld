@@ -1,0 +1,22 @@
+{
+  "id": "mira-sal-del-faro",
+  "herramienta": "mira",
+  "nota": "Caso de prueba del 14 nov 2026 con el proyecto de prueba «La sal del faro». Los fragmentos de canon son material de prueba, no de un libro real. Mide lo que más falló en vivo: dar por dicho lo que el autor no dijo, no recoger una corrección, no elegir cuando el autor pide qué hacer primero y alargar el cierre.",
+  "canon": "(Capítulo 1: La tormenta · cambió por última vez el 9 nov 2026) Esa noche el mar se tragó la luz del faro. Ana contó los segundos entre relámpago y trueno, como le enseñó su padre, y perdió la cuenta en el doce. Por la mañana el muelle estaba vacío.\n\n(Capítulo 2: El bote · cambió por última vez el 9 nov 2026) El bote apareció varado entre las rocas, con el casco abierto. Ana reconoció la chaqueta antes que la cara. Era de Tomás, el hermano mayor de Lucía. Su mejor amiga.",
+  "turnos": [
+    "Mira, ¿qué te parece cómo arranca el capítulo 2? Siento que el bote aparece de la nada.",
+    "Ojo: Ana todavía no sabe nada de lo que hizo su padre esa noche, eso lo descubre al final del libro. Y Lucía no está en el muelle en esa escena.",
+    "ok, entonces ¿qué hago primero, reescribo el 1 o sigo con el 2?",
+    "gracias, eso era"
+  ],
+  "comprobaciones": [
+    "No presenta como dicho por el autor ni como parte del canon ningún detalle que no esté en sus mensajes ni en los fragmentos (lo que propone va marcado como propuesta y lo que deduce, como lectura suya).",
+    "No pone entre comillas, como cita del canon, ninguna frase que no esté en los fragmentos recibidos. (Citar entre comillas lo que dijo el autor está bien.)",
+    "Tras el segundo mensaje recoge las dos correcciones (Ana no sabe lo del padre; Lucía no está en el muelle) sin disculpas largas y no vuelve a contradecirlas en los turnos siguientes.",
+    "En el tercer mensaje elige una opción concreta (reescribir el 1 o seguir con el 2) y da su razón en pocas líneas; no se queda en «depende».",
+    "No escribe prosa del libro (párrafos narrativos listos para pegar en el capítulo).",
+    "Como mucho una pregunta por respuesta.",
+    "Tras «gracias, eso era» responde en una o dos líneas y no abre un tema nuevo.",
+    "No empieza dos respuestas con la misma frase ni repite el mismo molde de secciones dos turnos seguidos."
+  ]
+}
