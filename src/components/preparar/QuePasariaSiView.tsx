@@ -6,10 +6,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Loader2, Sparkles, Bookmark, RotateCcw, BookOpen, Lightbulb, X, FileText, Paperclip, Palette, PencilLine, ChevronDown, Check } from 'lucide-react';
+import { Send, Loader2, Sparkles, Bookmark, RotateCcw, BookOpen, Lightbulb, X, FileText, Paperclip, Palette, PencilLine, ChevronDown, Check, Flag } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
-import { confirmDialog } from '../ui/confirmDialog';
+import { confirmDialog, promptDialog } from '../ui/confirmDialog';
 import { DriveImage, rememberDriveImage, shrinkImage } from '../ui/DriveImage';
 
 interface ImgRef { id: string; name: string; mimeType?: string }
@@ -17,7 +17,7 @@ interface Msg { role: 'user' | 'assistant'; text: string; at?: string; images?: 
 interface RefFile { id: string; name: string; path: string }
 interface Idea { id: string; name: string; modifiedTime?: string }
 interface PendingImage { name: string; mimeType: string; data: string; preview: string }
-interface Draft { titulo: string; cuerpo: string; tipo: 'idea' | 'diseno'; sujeto: string; imagenes: ImgRef[]; upTo: number; conConversacion: boolean }
+interface Draft { titulo: string; cuerpo: string; original: string; tipo: 'idea' | 'diseno'; sujeto: string; imagenes: ImgRef[]; upTo: number; conConversacion: boolean }
 interface Sheet { id: string; name: string; loading: boolean; content?: string; modifiedTime?: string }
 
 interface Props {
@@ -183,7 +183,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
         try {
             const r = await callFunction<any>('whatIf', { mode: 'distill', upTo }, { timeout: 120000 });
             const imagenes: ImgRef[] = r.imagenes || [];
-            setDraft({ titulo: r.titulo, cuerpo: r.cuerpo, tipo: r.tipo === 'diseno' ? 'diseno' : 'idea', sujeto: r.sujeto || '', imagenes, upTo, conConversacion: r.tipo === 'diseno' || imagenes.length > 0 });
+            setDraft({ titulo: r.titulo, cuerpo: r.cuerpo, original: r.cuerpo, tipo: r.tipo === 'diseno' ? 'diseno' : 'idea', sujeto: r.sujeto || '', imagenes, upTo, conConversacion: r.tipo === 'diseno' || imagenes.length > 0 });
         } catch (e: any) {
             toast.error(e?.message || 'No pude preparar la nota.');
         } finally {
@@ -196,7 +196,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
         setSaving(true);
         try {
             const r = await callFunction<any>('whatIf', {
-                mode: 'saveIdea', titulo: draft.titulo, cuerpo: draft.cuerpo, accessToken,
+                mode: 'saveIdea', titulo: draft.titulo, cuerpo: draft.cuerpo, cuerpoOriginal: draft.original, accessToken,
                 tipo: draft.tipo, sujeto: draft.sujeto, imagenes: draft.imagenes, upTo: draft.upTo, conConversacion: draft.conConversacion,
             }, { timeout: 120000 });
             setIdeas(prev => [r.idea, ...prev.filter(i => i.id !== r.idea.id)]);
@@ -234,6 +234,19 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
         });
         if (!ok) return;
         try { await callFunction('whatIf', { mode: 'reset' }); setMessages([]); } catch { toast.error('No pude reiniciar.'); }
+    };
+
+    // «Esto no es mío»: el autor dice qué inventó o entendió mal la IA. Queda guardado para todas las herramientas.
+    const notMine = async () => {
+        const text = await promptDialog({
+            title: '¿Qué no era tuyo?',
+            message: 'Cuéntame en una línea qué inventé o entendí mal. Lo recuerdo para no repetirlo, aquí y en las demás herramientas.',
+            placeholder: 'Nunca dije que tuviera cola',
+            confirm: 'Guardar corrección',
+        });
+        if (!text || !text.trim()) return;
+        try { await callFunction('whatIf', { mode: 'correct', text: text.trim() }); toast.success('Anotado. No lo repito.'); }
+        catch (e: any) { toast.error(e?.message || 'No pude guardar la corrección.'); }
     };
 
     const toggleRef = (id: string) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : (s.length >= 3 ? (toast.info('Hasta 3 fuentes a la vez.'), s) : [...s, id]));
@@ -318,6 +331,9 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                                     </div>
                                     <button onClick={() => prepareIdea(i)} disabled={preparing !== null} className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-800/40 px-2.5 py-1.5 text-[11.5px] text-amber-200/90 hover:bg-amber-900/20 disabled:opacity-40">
                                         {preparing === i ? <Loader2 size={11} className="animate-spin" aria-hidden="true" /> : <Bookmark size={11} aria-hidden="true" />} {title ? <>Guardar <span className="font-medium text-amber-100">«{title}»</span></> : 'Guardar como idea'}
+                                    </button>
+                                    <button onClick={notMine} className="ml-2 mt-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11.5px] text-titanium-400 hover:bg-titanium-800/60 hover:text-titanium-100">
+                                        <Flag size={11} aria-hidden="true" /> Esto no es mío
                                     </button>
                                 </div>
                             ); })()

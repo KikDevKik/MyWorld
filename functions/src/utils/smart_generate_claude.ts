@@ -32,8 +32,8 @@ export const CLAUDE_MODELS = {
         usageHint:   '~$0.05–0.15 por sesión',
     },
     maximum: {
-        id:          'claude-fable-5-1',
-        label:       'Fable 5.1',
+        id:          'claude-fable-5-2',
+        label:       'Fable 5.2',
         inputCost:   10,
         outputCost:  50,
         description: 'Casos extremos — máxima capacidad disponible',

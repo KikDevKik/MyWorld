@@ -15,6 +15,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
 import { aiText } from "./utils/ai_text";
 import { getMemoryContext } from "./utils/memory_store";
+import { sharedContext, noteAuthorMessage, noteDecision, addCorrections } from "./utils/shared_context";
 import { getAIKey } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { ingestFile } from "./ingestion";
@@ -36,7 +37,7 @@ PRIMERO MIRA EN QUÉ MOMENTO ESTÁ LA CONVERSACIÓN. No respondes igual en cada 
 - IDEA RECIÉN LANZADA (o el autor pide opciones): ábrele el abanico con 2 o 3 caminos concretos y de verdad distintos entre sí (que cambien quién sufre, qué se sabe o qué está en juego; no tres versiones de lo mismo).
 - EL AUTOR YA ELIGIÓ O AÑADIÓ PIEZAS SUYAS: no abras otro abanico. Construye sobre SU versión: (1) recoge en una o dos líneas SOLO lo nuevo que acaba de decir, con sus palabras, para que vea que lo entendiste; (2) empuja un paso: una consecuencia que no ha visto, un hueco que habría que tapar o un «¿y si…?» pequeño DENTRO de su camino. Como mucho dos aportes.
 - NO VUELVAS A CONTAR LA IDEA ENTERA EN CADA TURNO. El resumen completo («queda así: …») se da una sola vez, cuando la idea toma forma por primera vez; después solo cuando él lo pida o cuando haya cambiado tanto que el anterior ya no sirva. Lo que ya quedó dicho en tus respuestas anteriores no se repite: él lo tiene delante.
-- EL AUTOR SOLO CONFIRMA O CELEBRA («sí», «me encanta», «perfecto»): respuesta corta, de dos a cuatro líneas. Di qué quedó decidido con eso (solo eso, no todo lo anterior) y que puede guardarla. Un aporte más únicamente si es un hueco que de verdad rompería la idea; si no, nada.
+- EL AUTOR SOLO CONFIRMA O CELEBRA («sí», «me encanta», «perfecto»): respuesta corta, de dos a cuatro líneas. Di qué quedó decidido con eso (solo eso, no todo lo anterior) y que puede guardarla. Un aporte más únicamente si es un hueco que de verdad rompería la idea; si tú mismo dirías que «no rompe nada», no lo saques ahora. No reabras dudas de turnos anteriores.
 - EL AUTOR DICE QUE ALGO QUEDA ABIERTO, QUE YA ESTÁ O QUE ES SUFICIENTE: respétalo. No preguntes por eso ni lo cierres por él. Dile en una línea qué quedó armado y qué quedó abierto a propósito, y que puede guardarla.
 - EL AUTOR PREGUNTA ALGO CONCRETO: responde eso primero y corto.
 
@@ -63,7 +64,7 @@ IMÁGENES (bocetos, referencias, diseños de personaje):
 
 SIEMPRE:
 - No escribes la prosa de su libro. Sí puedes dar ideas sueltas, una escena en esquema, una imagen, una línea de diálogo como ejemplo.
-- Opina cuando ayude a elegir: cuál camino tomarías y por qué, en una o dos frases.
+- Opina cuando ayude a elegir: cuál camino tomarías y por qué, en una o dos frases. No en cada respuesta, y sin el rótulo fijo «Mi opinión:»: si opinas, que entre en el texto.
 - Como mucho UNA pregunta por respuesta, y solo si su respuesta cambiaría la idea. Nunca una que ya contestó.
 - No empieces repitiendo cómo empezaste tu respuesta anterior, y no uses el mismo molde dos veces seguidas. Vale también para las muletillas de confirmación: si la anterior abrió con «Queda decidido:» o «Queda así:», esta abre de otra forma o entra directo al contenido.
 - Si no recibiste fragmentos de su canon, dilo como mucho una vez en toda la conversación y solo si hace falta; después trabaja con lo que él cuenta, sin repetir el aviso. Sin títulos; viñetas solo cuando haya de verdad varias opciones.
@@ -264,6 +265,14 @@ export const whatIf = onCall(
             return { messages: (snap.data() as any)?.messages || [], references: refs.filter(r => !r.path.startsWith(IDEAS_FOLDER + "/")) };
         }
 
+        // Nov 2026: «Esto no es mío». El autor dice qué inventó o entendió mal la IA; queda para todas las herramientas.
+        if (mode === "correct") {
+            const text = String(request.data?.text || "").trim();
+            if (text.length < 4) throw new HttpsError("invalid-argument", "Cuéntame qué fue lo que no dijiste.");
+            await addCorrections(uid, "ideas", [`El autor corrigió en Ideas: «${text.slice(0, 280)}»`]);
+            return { ok: true };
+        }
+
         if (mode === "reset") {
             await ref.set({ messages: [], updatedAt: new Date().toISOString() });
             return { messages: [] };
@@ -315,13 +324,16 @@ export const whatIf = onCall(
             }
             const recent = history.slice(-12);
             const convoHint = recent.map(m => m.text).join(" ").slice(-1500) + " " + message;
-            const [memory, canon] = await Promise.all([
+            if (message) await noteAuthorMessage(uid, "ideas", message);
+            const [memory, canon, elsewhere] = await Promise.all([
                 getMemoryContext(uid, convoHint),
                 canonPeek(uid, convoHint, request.data),
+                sharedContext(uid, "ideas"),
             ]);
             const context = [
                 memory ? `SU MUNDO (memoria del proyecto):\n${memory}` : "",
-                canon ? `FRAGMENTOS DE SU CANON (cada uno empieza con el nombre del documento entre paréntesis y, si se sabe, cuándo cambió por última vez; sirven para no inventar y para avisar choques, no para limitar):\n${canon}` : "FRAGMENTOS DE SU CANON: (no se recuperó ninguno para este tema: no afirmes nada sobre su canon)",
+                elsewhere,
+                canon ? `FRAGMENTOS DE SU CANON (cada uno empieza con el nombre del documento entre paréntesis y, si se sabe, cuándo cambió por última vez; sirven para no inventar y para avisar choques, no para limitar):\n${canon}` : "FRAGMENTOS DE SU CANON: ninguno esta vez. Trabaja con lo que cuenta el autor y no cites documentos. No hace falta avisarle que no los tienes, salvo que te pregunte por algo de su canon; y si ya se lo dijiste en esta conversación, no lo repitas.",
                 refText ? `REFERENCIAS QUE ELIGIÓ PARA ESTA CONVERSACIÓN:\n${refText}` : "",
                 refs.length ? `SUS REFERENCIAS EN RECURSOS (nombres): ${refs.filter(r => !r.path.startsWith(IDEAS_FOLDER + "/")).map(r => r.name).slice(0, 60).join(", ")}` : "",
             ].filter(Boolean).join("\n\n");
@@ -418,6 +430,14 @@ export const whatIf = onCall(
             const titulo = String(request.data?.titulo || "").replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Idea sin título";
             const cuerpo = String(request.data?.cuerpo || "").trim();
             if (!cuerpo) throw new HttpsError("invalid-argument", "La idea está vacía.");
+            // Nov 2026: lo que el autor borró de la nota que le preparó la IA es una corrección: eso no era suyo.
+            try {
+                const norm = (l: string) => l.replace(/^[\s>*\-\d.]+/, "").replace(/\s+/g, " ").trim().toLowerCase();
+                const kept = new Set(cuerpo.split("\n").map(norm));
+                const removed = String(request.data?.cuerpoOriginal || "").split("\n").filter(l => /^\s*[-*]\s+\S/.test(l) && norm(l).length > 18 && !kept.has(norm(l))).slice(0, 3);
+                if (removed.length) await addCorrections(uid, "ideas", removed.map(l => `Al guardar «${titulo}», el autor borró de la nota esta línea que había puesto la IA: «${l.replace(/^\s*[-*]\s+/, "").slice(0, 220)}»`));
+                await noteDecision(uid, "ideas", `Guardó en Ideas (no canon) «${titulo}»`);
+            } catch { /* no bloquea el guardado */ }
             const drive = drv(accessToken);
             const folder = (await findIdeasFolder(drive, uid, true))!;
             const today = new Date().toISOString().slice(0, 10);

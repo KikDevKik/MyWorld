@@ -18,6 +18,7 @@ import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
 import { planContext } from "./plan_context";
 import { saveBookPov } from "./mira_taller";
 import { fileChangeDates, dateTag, CANON_DATES_RULE } from "./utils/canon_dates";
+import { sharedContext, noteAuthorMessage, noteDecision } from "./utils/shared_context";
 
 const FOLDER = "application/vnd.google-apps.folder";
 export const SESSIONS_FOLDER = "Sesiones del Arquitecto";
@@ -277,7 +278,8 @@ async function ask(contextBlocks: string[], instruction: string, label: string, 
         system: [{ text: CONECTAR_SYSTEM + "\n\n" + CANON_DATES_RULE + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
         content,
         maxTokens,
-        effort: "low",
+        // Nov 2026: la conversación piensa un poco más (es donde se decide el libro); cerrar y planear siguen en bajo.
+        effort: label === "ArquitectoConectar" ? "medium" : "low",
         label,
     } as any);
     if (!r.ok || !r.text) {
@@ -334,8 +336,10 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
     // Nov 2026 (gasto): 12 mensajes de historial (la agenda y la memoria guardan lo anterior).
     const history = await sessionHistory(uid, sessionId, 12);
     const hint = `${query} ${history.slice(-1200)}`;
-    const [memory, shared, focus, craft, plan] = await Promise.all([
+    await noteAuthorMessage(uid, "arquitecto", query);
+    const [memory, elsewhere, shared, focus, craft, plan] = await Promise.all([
         getMemoryContext(uid, hint),
+        sharedContext(uid, "arquitecto"),
         sharedMaterial(uid, sharedDocs),
         focusMaterial(uid, goal, sharedDocs),
         craftContext(uid),
@@ -359,6 +363,7 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
     const raw = await ask([
         goal ? `OBJETIVO DE LA SESIÓN: ${goal}` : "",
         memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
+        elsewhere,
         plan,
         craft,
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
@@ -370,6 +375,11 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
     const sc = splitCraft(raw);
     if (sc.craft) await saveCraft(uid, sc.craft, "arquitecto");
     const out = splitAgenda(sc.text);
+    // Lo que acaba de quedar cerrado en la agenda se cuenta al momento a Mira e Ideas.
+    if (out.agenda) {
+        const wasDone = new Set(agenda.filter(p => p.e === "hecho").map(p => p.t));
+        for (const p of out.agenda.filter(p => p.e === "hecho" && !wasDone.has(p.t)).slice(0, 3)) await noteDecision(uid, "arquitecto", `Quedó resuelto con el Arquitecto el punto «${p.t}» (libro: ${goal ? goal.slice(0, 80) : "sin objetivo anotado"})`);
+    }
     await sref.set({ turns, ...(out.agenda ? { agenda: out.agenda } : {}), agendaCerrar: out.cerrar }, { merge: true });
     return out.text;
 }

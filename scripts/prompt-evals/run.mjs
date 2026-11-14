@@ -33,6 +33,7 @@ function constFrom(file, name) {
 // Qué prompt usa cada herramienta. Para probar otra, añade su línea aquí.
 const TOOLS = {
     ideas: () => constFrom('functions/src/whatif.ts', 'WHATIF_SYSTEM') + '\n\n' + constFrom('functions/src/utils/claude_router.ts', 'MYWORLD_VOICE'),
+    mira: () => constFrom('functions/src/prompts/mira.ts', 'MIRA_SYSTEM') + '\n\n' + constFrom('functions/src/utils/claude_router.ts', 'MYWORLD_VOICE'),
 };
 const MODEL = (fs.readFileSync(path.join(root, 'functions/src/utils/claude_router.ts'), 'utf8').match(/CLAUDE_SONNET\s*=\s*"([^"]+)"/) || [])[1];
 const JUDGE = (fs.readFileSync(path.join(root, 'functions/src/utils/claude_router.ts'), 'utf8').match(/CLAUDE_HAIKU\s*=\s*"([^"]+)"/) || [])[1];
@@ -46,7 +47,7 @@ if (!cases.length) { console.error('No hay casos con ese nombre.'); process.exit
 function userContent(c, history, message) {
     const canon = c.canon?.trim()
         ? `FRAGMENTOS DE SU CANON (cada uno empieza con el nombre del documento entre paréntesis y, si se sabe, cuándo cambió por última vez; sirven para no inventar y para avisar choques, no para limitar):\n${c.canon.trim()}`
-        : 'FRAGMENTOS DE SU CANON: (no se recuperó ninguno para este tema: no afirmes nada sobre su canon)';
+        : 'FRAGMENTOS DE SU CANON: ninguno esta vez. Trabaja con lo que cuenta el autor y no cites documentos. No hace falta avisarle que no los tienes, salvo que te pregunte por algo de su canon; y si ya se lo dijiste en esta conversación, no lo repitas.';
     const convo = history.map(m => (m.role === 'user' ? 'AUTOR: ' : 'TÚ: ') + m.text).join('\n\n');
     const turns = history.filter(m => m.role === 'user').length + 1;
     return [canon, convo ? `CONVERSACIÓN HASTA AHORA:\n${convo}` : '', `(Mensaje ${turns} del autor en esta conversación.)`, `AUTOR: ${message}`].filter(Boolean).join('\n\n');
@@ -99,8 +100,8 @@ for (const c of cases) {
     }
     const transcript = history.map((m, i) => `${m.role === 'user' ? 'AUTOR' : `IA (respuesta ${(i + 1) / 2})`}:\n${m.text}`).join('\n\n---\n\n');
     const judge = await client.messages.create({
-        model: JUDGE, max_tokens: 3000, output_config: { effort: 'low' },
-        system: [{ type: 'text', text: 'Eres un revisor estricto de una IA que acompaña a escritores. Recibes una conversación y una lista numerada de comprobaciones. Para cada una decide si las respuestas de la IA la CUMPLEN. Sé literal: si dudas, no cumple. Responde SOLO con una línea por comprobación, en este formato exacto y sin nada más:\nN | SI | motivo corto\nN | NO | cita corta de la respuesta que lo incumple\n(N es el número de la comprobación.)' }],
+        model: MODEL, max_tokens: 3000, output_config: { effort: 'medium' }, // el revisor rápido se contradecía («Revisado: SI» marcado como NO)
+        system: [{ type: 'text', text: 'Eres un revisor estricto de una IA que acompaña a escritores. Recibes una conversación y una lista numerada de comprobaciones. Para cada una decide si las respuestas de la IA la CUMPLEN. Decide primero y escribe un solo veredicto por línea: no razones en voz alta ni te corrijas dentro de la línea. Una propuesta dicha como «¿y si…?» no cuenta como pregunta al autor. Recoger en una frase lo que el autor acaba de decir no cuenta como volver a contar la idea entera. Si dudas, no cumple. Responde SOLO con una línea por comprobación, en este formato exacto y sin nada más:\nN | SI | motivo corto\nN | NO | cita corta de la respuesta que lo incumple\n(N es el número de la comprobación.)' }],
         messages: [{ role: 'user', content: `CANON QUE RECIBIÓ LA IA:\n${c.canon?.trim() || '(ninguno)'}\n\nCONVERSACIÓN:\n${transcript}\n\nCOMPROBACIONES:\n${c.comprobaciones.map((x, i) => `${i + 1}. ${x}`).join('\n')}` }],
     });
     // Una línea por comprobación («3 | NO | cita»): aguanta comillas dentro de las citas, que rompían el JSON.
