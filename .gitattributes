@@ -1,0 +1,17 @@
+# Nov 2026: finales de línea iguales para todos (Windows, la nube y los asistentes).
+# Git guarda todo con LF; cada equipo los ve como su sistema prefiera.
+* text=auto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.mp4 binary
+*.webm binary
+*.mp3 binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.pdf binary
+*.glb binary

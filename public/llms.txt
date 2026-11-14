@@ -1,7 +1,7 @@
 # MyWorld
 
 > MyWorld is a Creative IDE for writers and worldbuilders building fictional universes.
-> It is a web application powered by Google Gemini AI, available at https://myworldhistory.site/
+> It is a web application in closed beta (AI included for invited accounts, powered by Anthropic Claude), available at https://myworldhistory.site/
 
 ## What MyWorld Does
 
@@ -57,7 +57,7 @@ understand your fictional universe and help you maintain consistency across your
 ## Technology
 
 - Frontend: React + TypeScript + Vite + Tailwind CSS
-- AI: Google Gemini (gemini-2.0-flash, gemini-1.5-pro)
+- AI: Anthropic Claude for conversation and reports; Google embeddings for searching the author's canon
 - Backend: Firebase Functions (Node.js)
 - Storage: Google Drive (user files), Firestore (metadata)
 - Authentication: Google OAuth

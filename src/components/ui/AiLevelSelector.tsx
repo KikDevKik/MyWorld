@@ -1,12 +1,12 @@
 // Oct 2026: los 3 niveles de IA (Ajustes → Config IA). Ver hooks/aiLevel.ts.
 import React, { useEffect, useState } from 'react';
-import { Leaf, KeyRound, Sparkles, Check, Lock, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { KeyRound, Sparkles, Check, Lock, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { AiLevel, getAiLevel, setAiLevelStored, getGeminiPaid, setGeminiPaidStored } from '../../hooks/aiLevel';
 
 const usd = (n: number) => n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 3 : 2 });
-interface Status { myworldAvailable?: boolean; claudeActive?: boolean; monthCostUsd: number; calls: number; byokCostUsd?: number; byokCalls?: number; capUsd?: number; byFeature?: Record<string, number>; byTool?: Record<string, { costUsd?: number; calls?: number; ms?: number; inTok?: number; outTok?: number }>; byDay?: Record<string, number> }
+interface Status { myworldAvailable?: boolean; systemSearchKey?: boolean; claudeActive?: boolean; monthCostUsd: number; calls: number; byokCostUsd?: number; byokCalls?: number; capUsd?: number; byFeature?: Record<string, number>; byTool?: Record<string, { costUsd?: number; calls?: number; ms?: number; inTok?: number; outTok?: number }>; byDay?: Record<string, number> }
 // Nov 2026: en qué se fue el gasto del mes (se registra desde noviembre; lo anterior cuenta en el total).
 const TOOL_NAMES: Record<string, string> = {
     WhatIf: 'Ideas: cada respuesta', WhatIfDistill: 'Ideas: preparar la nota', Director: 'Mira: cada respuesta', MemoryUpdate: 'Actualizar la memoria',
@@ -27,13 +27,17 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
 
     useEffect(() => { callFunction<Status>('getAIStatus', {}).then(r => r && setStatus(r)).catch(() => {}); }, [stored]);
 
-    const level: AiLevel = stored ?? (status?.myworldAvailable ? 'myworld' : hasAnthropicKey ? 'propia' : 'gratis');
+    // Nov 2026 (beta cerrada): el nivel gratis con Gemini ya no se ofrece. Quien lo tenía y está invitado pasa a MyWorld;
+    // quien lo tenía y no está invitado sigue funcionando con su clave hasta que elija otra cosa.
+    const legacyFree = stored === 'gratis' && status != null && !status.myworldAvailable;
+    const level: AiLevel = stored && stored !== 'gratis' ? stored : (status?.myworldAvailable ? 'myworld' : hasAnthropicKey ? 'propia' : 'gratis');
+    useEffect(() => { if (stored === 'gratis' && status?.myworldAvailable) { setAiLevelStored('myworld'); setStored('myworld'); } }, [stored, status?.myworldAvailable]);
     const choose = (l: AiLevel) => {
         if (l === 'myworld' && !status?.myworldAvailable) return;
         if (l === 'propia' && !hasAnthropicKey && !hasGeminiKey) { toast.info('Agrega tu clave de pago abajo (Gemini con facturación o Anthropic).'); }
         setAiLevelStored(l);
         setStored(l);
-        toast.success(l === 'gratis' ? 'Nivel Gratis activado' : l === 'propia' ? 'Nivel Tu clave de pago activado' : 'Nivel MyWorld activado');
+        toast.success(l === 'propia' ? 'Ahora usas tu propia clave' : 'Ahora usas la IA de MyWorld');
     };
 
     const Card = ({ id, icon, title, price, children, disabled }: { id: AiLevel; icon: React.ReactNode; title: string; price: string; children: React.ReactNode; disabled?: boolean }) => {
@@ -56,19 +60,8 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
     return (
         <div className="mb-6">
             <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-400">Nivel de IA</h4>
-            <div className="grid grid-cols-3 gap-3">
-                <Card id="gratis" icon={<Leaf size={15} />} title="1 · Gratis" price="US$ 0 · tu clave gratis de Gemini">
-                    <p>Todo funciona con Gemini en su nivel gratuito, con los límites diarios de Google.</p>
-                    <p className="flex gap-1 text-amber-300/80"><AlertTriangle size={12} className="mt-0.5 shrink-0" />En el nivel gratis, Google puede usar lo que envías para mejorar sus modelos.</p>
-                    {!hasGeminiKey && <p className="text-red-300/80">Falta tu clave de Gemini (abajo).</p>}
-                </Card>
-                <Card id="propia" icon={<KeyRound size={15} />} title="2 · Tu clave de pago" price="Pagas tú, directo a Google o Anthropic">
-                    <p className="flex gap-1 text-emerald-300/80"><ShieldCheck size={12} className="mt-0.5 shrink-0" />Con APIs de pago tu escritura no se usa para entrenar modelos.</p>
-                    <p>{hasAnthropicKey ? 'Director, Arquitecto, Reporte y Personajes usan Claude con tu clave.' : 'Con una clave de Anthropic, la conversación usa Claude (lo más fino para narrativa).'}</p>
-                    <p className="text-titanium-500">Aprox.: mensaje a Mira US$ 0,02–0,04 · reporte de capítulo US$ 0,10.</p>
-                    {level === 'propia' && status && (status.byokCalls || 0) > 0 && <p className="text-titanium-300">Este mes con tu clave: US$ {usd(status.byokCostUsd || 0)} en {status.byokCalls} llamadas.</p>}
-                </Card>
-                <Card id="myworld" icon={<Sparkles size={15} />} title="3 · MyWorld" price={status?.myworldAvailable ? 'Incluido en tu cuenta' : 'Próximamente · con suscripción'} disabled={!status?.myworldAvailable}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Card id="myworld" icon={<Sparkles size={15} />} title="MyWorld · beta cerrada" price={status?.myworldAvailable ? 'Incluido en tu cuenta' : 'Solo cuentas invitadas'} disabled={!status?.myworldAvailable}>
                     <p>Claude incluido: no necesitas clave de pago. MyWorld paga la IA.</p>
                     {status?.myworldAvailable ? (
                         <>
@@ -121,6 +114,12 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                         </>
                     ) : <p className="text-titanium-500">Lo abriremos cuando estén listos los planes.</p>}
                 </Card>
+                <Card id="propia" icon={<KeyRound size={15} />} title="Tu propia clave" price="Avanzado · pagas tú, directo a Anthropic o Google">
+                    <p className="flex gap-1 text-emerald-300/80"><ShieldCheck size={12} className="mt-0.5 shrink-0" />Con APIs de pago tu escritura no se usa para entrenar modelos.</p>
+                    <p>{hasAnthropicKey ? 'Director, Arquitecto, Reporte y Personajes usan Claude con tu clave.' : 'Con una clave de Anthropic, la conversación usa Claude (lo más fino para narrativa).'}</p>
+                    <p className="text-titanium-500">Aprox.: mensaje a Mira US$ 0,02–0,04 · reporte de capítulo US$ 0,10.</p>
+                    {level === 'propia' && status && (status.byokCalls || 0) > 0 && <p className="text-titanium-300">Este mes con tu clave: US$ {usd(status.byokCostUsd || 0)} en {status.byokCalls} llamadas.</p>}
+                </Card>
             </div>
 
             {level === 'propia' && (
@@ -144,7 +143,14 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                     ))}
                 </div>
             )}
-            <p className="mt-2 text-[11px] text-titanium-500">En todos los niveles, la búsqueda en tu canon (encontrar lo relevante de tus archivos) usa tu clave de Gemini: no la borres.</p>
+            {status && !status.myworldAvailable && (
+                <div className="mt-3 rounded-xl border border-titanium-700 bg-titanium-950/50 p-3.5 text-[12px] leading-relaxed text-titanium-300">
+                    <p className="font-medium text-titanium-100">MyWorld está en beta cerrada.</p>
+                    <p className="mt-1">La IA viene incluida para las cuentas invitadas. Si quieres probarla, escríbenos y cuéntanos qué estás escribiendo: <a className="text-mira underline underline-offset-2" href="mailto:deidev180@gmail.com?subject=Quiero%20probar%20MyWorld">deidev180@gmail.com</a>.</p>
+                    {legacyFree && <p className="mt-1 text-titanium-400">Tu cuenta sigue funcionando con tu clave de Gemini como hasta ahora; ese nivel ya no se ofrece a cuentas nuevas.</p>}
+                </div>
+            )}
+            <p className="mt-2 text-[11px] text-titanium-500">{status?.myworldAvailable && status.systemSearchKey ? 'En tu cuenta la búsqueda en tu canon también corre por cuenta de MyWorld: no necesitas ninguna clave.' : 'La búsqueda en tu canon (encontrar lo relevante de tus archivos) usa tu clave de Gemini: no la borres.'}</p>
         </div>
     );
 }

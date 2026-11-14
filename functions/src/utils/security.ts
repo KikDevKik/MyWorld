@@ -5,6 +5,8 @@ import { promisify } from 'util';
 import * as net from 'net';
 import * as https from 'https';
 import * as http from 'http';
+import { getRequestUid } from "./request_context";
+import { myworldClaudeAvailable } from "./claude_router";
 
 const lookup = promisify(dns.lookup);
 
@@ -102,7 +104,13 @@ export function resolveAIProvider(
  * 🔑 KEYMASTER: AI Key Resolver — Compatibilidad heredada con Gemini.
  * Falla solo si el usuario no tiene ninguna clave (Gemini o Claude).
  */
-export function getAIKey(requestData: any, _systemKeyValue?: string): string {
+export function getAIKey(requestData: any, systemKeyValue?: string): string {
+    // Nov 2026 (beta cerrada): las cuentas invitadas no necesitan clave propia. Si no traen una de Gemini,
+    // la búsqueda en su canon y el índice usan la clave de MyWorld (GOOGLE_API_KEY). Nadie más la recibe.
+    const own = getGeminiKeyOnly(requestData);
+    if (own) return own;
+    const system = String(systemKeyValue || "").trim();
+    if (system && myworldClaudeAvailable(getRequestUid())) return system;
     const resolved = resolveAIProvider(requestData, 'gemini');
     return resolved.apiKey;
 }

@@ -483,10 +483,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             if (!customGeminiKey && !customAnthropicKey) {
                 // Nov 2026: las cuentas con la IA de MyWorld no necesitan clave (en un navegador nuevo, como el
                 // celular, el nivel aún no está guardado): se elige solo y no se muestra el aviso.
-                const nag = () => toast("Falta tu clave de IA", {
-                    description: "Para que Mira y el Arquitecto funcionen, agrega una clave gratuita de Google Gemini.",
-                    duration: 10000,
-                    action: { label: "Agregar clave", onClick: () => setIsSettingsModalOpen(true) },
+                // Nov 2026 (beta cerrada): ya no se pide una clave gratuita de Gemini; la IA es para cuentas invitadas.
+                const nag = () => toast("MyWorld está en beta cerrada", {
+                    description: "Puedes escribir y organizar tu mundo. Mira y el Arquitecto se activan con una invitación o con tu propia clave.",
+                    duration: 12000,
+                    action: { label: "Ver cómo", onClick: () => setIsSettingsModalOpen(true) },
                 });
                 callFunction<{ myworldAvailable?: boolean }>('getAIStatus', {})
                     .then(s => {
