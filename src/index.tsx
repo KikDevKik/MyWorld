@@ -6,6 +6,8 @@ import './index.css'
 import { initTheme } from './utils/theme';
 import { reloadForNewVersion } from './utils/lazyView';
 import './lib/firebase'; // 👈 IMPORTACIÓN DE LA IGNICIÓN (Efecto secundario)
+import { initErrorReporting } from './services/errorReport';
+initErrorReporting();
 
 initTheme();
 

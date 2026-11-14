@@ -28,7 +28,8 @@ import { getMemoryContext } from "./utils/memory_store";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
 import * as crypto from 'crypto';
-import { MAX_CHAT_MESSAGE_LIMIT, MAX_AI_INPUT_CHARS, MAX_SESSION_NAME_CHARS, TEMP_CREATIVE, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE, FolderRole, FinishReason, WriterProfile, AnyTypeHack, _getProjectConfigInternal, maskLog, extractUrls, fetchWebPageContent, matter, marked, sanitizeHtml, JSDOM, htmlToPdfmake, handleSecureError, appendToSessionLog, resolveDriveFolder, fetchFolderContents, flattenFileTree, createProjectCache, getFolderIdForRole, SecretManagerServiceClient, admin } from "./utils/legacy_stubs";
+import { MAX_CHAT_MESSAGE_LIMIT, TEMP_CREATIVE, SAFETY_SETTINGS_PERMISSIVE, FinishReason, WriterProfile, _getProjectConfigInternal, extractUrls, fetchWebPageContent, admin } from "./utils/legacy_stubs";
+import { maskLog } from "./utils/logger";
 
 // --- QUOTA ERROR DETECTION ---
 function isQuotaError(e: any): boolean {

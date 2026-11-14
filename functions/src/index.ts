@@ -7,7 +7,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { TitaniumGenesis } from "./services/genesis";
-import { getAIKey, getTier } from "./utils/security";
+import { getAIKey, getTier, handleSecureError } from "./utils/security";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
 import { updateFirestoreTree } from "./utils/tree_utils";
@@ -48,6 +48,7 @@ export { genesisManifest } from './genesis';
 export { exchangeAuthCode, loginWithGoogleCode, refreshDriveToken, revokeDriveAccess } from './auth';
 export { auditContent, purgeEcho, scanProjectDrift, rescueEcho, auditGlobal } from './guardian';
 export { deleteMyData } from './delete_my_data';
+export { logClientError } from './client_errors'; // Nov 2026: aviso de errores en producción
 export { scribeCreateFile, integrateNarrative, scribePatchFile } from './scribe';
 export { syncSmart } from './sync_smart'; // Oct 2026: sincronización real Drive/Obsidian ↔ índice
 import { getTranslation } from './backend_i18n';
@@ -1288,7 +1289,7 @@ FORMATO: responde SOLO JSON:
 // --- RECOVERED FUNCTIONS FROM MAIN ---
 
 // @ts-nocheck
-import { MAX_CHAT_MESSAGE_LIMIT, MAX_AI_INPUT_CHARS, MAX_SESSION_NAME_CHARS, TEMP_CREATIVE, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE, FolderRole, FinishReason, WriterProfile, AnyTypeHack, _getProjectConfigInternal, maskLog, extractUrls, fetchWebPageContent, matter, marked, sanitizeHtml, JSDOM, htmlToPdfmake, handleSecureError, appendToSessionLog, resolveDriveFolder, fetchFolderContents, flattenFileTree, createProjectCache, getFolderIdForRole, SecretManagerServiceClient, admin } from "./utils/legacy_stubs";
+import { MAX_AI_INPUT_CHARS, MAX_SESSION_NAME_CHARS, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE, FolderRole, _getProjectConfigInternal, matter, marked, resolveDriveFolder, fetchFolderContents, flattenFileTree, createProjectCache, getFolderIdForRole, admin } from "./utils/legacy_stubs";
 
 
 // La conversación de Mira (chatWithGem) vive en ./mira_chat.

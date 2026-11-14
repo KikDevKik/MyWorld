@@ -15,7 +15,7 @@ import { GoogleGenerativeAI } from "./utils/genai";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { fileText } from "./personajes";
 import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
-import { planContext } from "./plan_context";
+import { planContext, loadPlan } from "./plan_context";
 import { saveBookPov } from "./mira_taller";
 import { fileChangeDates, dateTag, CANON_DATES_RULE } from "./utils/canon_dates";
 import { sharedContext, noteAuthorMessage, noteDecision } from "./utils/shared_context";
@@ -52,7 +52,9 @@ CÓMO TRABAJAS:
 8. Su proyecto puede tener varias sagas o libros con documentos que se llaman igual (p. ej. «Capítulo 1» del libro de Anna y del de Megu). Fíjate en la carpeta de cada documento (va entre paréntesis) y no los mezcles. Si no sabes cuál es, pregúntale; si te falta el texto, pídele que lo traiga con «Traer un documento» (el botón junto al mensaje).
 9. Si el autor trajo documentos a la conversación, léelos completos: son la referencia principal cuando hable de ellos.
 10. Antes de decir que algo «no está en su material», búscalo en el MATERIAL DEL LIBRO EN FOCO, en lo que nombró y en los fragmentos. Si de verdad no está, di en qué documentos lo buscaste para que él pueda corregirte.
-11. La sesión tiene un fin: que el autor pueda escribir sin dudas que lo frenen. Decide con él solo lo necesario para escribir. Lo que se decide mejor al redactar (gestos, quién mira a quién, frases, el orden exacto dentro de una escena) no lo preguntes: dile «esto lo decides al escribir». No abras un tema nuevo si el actual ya alcanza.`;
+11. La sesión tiene un fin: que el autor pueda escribir sin dudas que lo frenen. Decide con él solo lo necesario para escribir. Lo que se decide mejor al redactar (gestos, quién mira a quién, frases, el orden exacto dentro de una escena) no lo preguntes: dile «esto lo decides al escribir». No abras un tema nuevo si el actual ya alcanza.
+12. REABRIR UNA DECISIÓN. Si el autor duda de algo que ya decidió (está en el PLAN DEL LIBRO, en la memoria o en esta conversación) o llega con otra idea para lo mismo, eso es trabajo normal, no un problema: los planes de una saga se corrigen. No defiendas la decisión anterior ni aceptes la nueva sin mirarla. Haz esto: (a) di en una línea qué quedó decidido y para qué servía; (b) pon la idea nueva al lado y di qué gana y qué pierde cada una respecto a lo que él quiere del libro y de los libros que vienen; (c) cuando elija, dilo sin rodeos («esto reemplaza a…») y nombra qué texto ya escrito queda por rehacer o descartar. Queda anotado al cerrar la sesión.
+13. DECISIONES DE ESTRUCTURA (por dónde empieza el libro, qué se cuenta en detalle y qué se resume, cuánto dura una etapa). No las des por buenas solo porque el autor las aceptó. Pruébalas con él contra tres preguntas: qué le promete este tramo al lector (hacia dónde va el libro), qué cambia para el personaje al final del tramo, y qué perdería el libro si ese tramo ocupara una página. Si una parte no tiene respuesta para las tres, dilo: es la señal de que ese tramo puede alargarse sin rumbo. Dile también qué riesgo le ves a la opción que elija, aunque te guste.`;
 
 // Nov 2026: la agenda de la sesión. Para que la conversación no parezca infinita: el Arquitecto arma los puntos
 // al empezar, los marca al avanzar y avisa cuando ya se puede escribir. La línea no se le muestra al autor.
@@ -91,9 +93,12 @@ const CLOSE_TASK = `El autor cierra esta sesión con El Arquitecto. Resume SOLO 
 (UNA escena concreta que, con lo decidido, ya se puede escribir: quién, dónde, qué cambia. En una o dos frases; sin prosa)
 No agregues nada que el autor no haya dicho o aceptado en Conexiones. Breve.`;
 
-const PLAN_TASK = `Convierte lo que el autor decidió en esta sesión en los pasos que hará en el escritorio, en orden: de 3 a 8 misiones cortas y concretas, empezando por un verbo (p. ej. «Reescribir el capítulo 1: el festival de los 5 años, con Anna escondida detrás de Marco»). Solo lo decidido o lo que falta escribir según lo decidido; nada inventado. "libro": el libro o la parte que trabajó, si se sabe.
+const PLAN_TASK = `Convierte lo que el autor decidió en esta sesión en los pasos que hará en el escritorio, en orden: de 3 a 8 misiones cortas y concretas, empezando por un verbo (p. ej. «Reescribir el capítulo 1: el festival de los 5 años, con Anna escondida detrás de Marco»). Solo lo decidido o lo que falta escribir; nada que el autor no haya dicho o aceptado.
+SI RECIBES UN «PLAN ANTERIOR» del mismo libro: el plan nuevo lo CONTINÚA, no lo borra. Conserva tal cual (mismas palabras) las misiones anteriores que siguen valiendo; quita o reescribe solo las que esta sesión cambió o dejó sin sentido; añade las nuevas. Si el plan anterior es de otro libro, ignóralo.
+"reemplaza": lo que esta sesión cambió respecto a lo decidido antes, una frase por cambio («Antes: contar la infancia de Ana en detalle. Ahora: un solo capítulo de infancia que termina en el golpe»). Vacío si no cambió nada.
+"rehacer": textos ya escritos que el autor decidió volver a escribir o descartar, con el nombre que él usa («Capítulo 1 del libro de Ana») y el motivo en una frase. Vacío si no hay.
 "pov": solo si en la sesión se decidió de forma explícita quién narra ese libro (persona, distancia y tiempo verbal, en una frase); si no se decidió, "".
-Responde SOLO con JSON: {"libro":"…","misiones":["…"],"pov":""}`;
+Responde SOLO con JSON: {"libro":"…","misiones":["…"],"reemplaza":["…"],"rehacer":[{"doc":"…","motivo":"…"}],"pov":""}`;
 
 function drv(accessToken: string) {
     const auth = new google.auth.OAuth2();
@@ -392,7 +397,11 @@ export async function conectarClose(uid: string, sessionId: string, accessToken?
     // Nov 2026: lo decidido pasa al plan del escritorio («Según tu plan, sigue…»), y queda a nivel de proyecto:
     // no se pierde al empezar otra conversación.
     try {
-        const planRaw = await ask([`RESUMEN DE LA SESIÓN:\n${summary}`], PLAN_TASK, "ArquitectoPlan", 1200, "", apiKey);
+        // Nov 2026: cerrar una sesión ya no borra el plan anterior. Una sesión corta para cambiar una decisión
+        // se llevaba por delante todo lo decidido antes; ahora el plan nuevo continúa el anterior.
+        const prev = await loadPlan(uid);
+        const prevBlock = prev ? `PLAN ANTERIOR${prev.libro ? ` (${prev.libro})` : ""}:\n${prev.missions.map((m, i) => `${i + 1}. [${prev.done.includes(i) ? "hecho" : "pendiente"}] ${m}`).join("\n")}` : "";
+        const planRaw = await ask([`RESUMEN DE LA SESIÓN:\n${summary}`, prevBlock].filter(Boolean), PLAN_TASK, "ArquitectoPlan", 1600, "", apiKey);
         const j = JSON.parse(planRaw.slice(planRaw.indexOf("{"), planRaw.lastIndexOf("}") + 1));
         const misiones: string[] = (Array.isArray(j.misiones) ? j.misiones : []).map((m: any) => String(m || "").trim().slice(0, 200)).filter(Boolean).slice(0, 8);
         if (misiones.length) {
@@ -400,7 +409,19 @@ export async function conectarClose(uid: string, sessionId: string, accessToken?
             const now = new Date().toISOString();
             await db.collection("users").doc(uid).collection("forge_sessions").doc(sessionId).collection("architect").doc("roadmapFinal")
                 .set({ creationMissions: misiones, changelog: [], researchMissions: [], source: "conectar", createdAt: now }, { merge: true });
-            await db.collection("users").doc(uid).collection("plan").doc("current").set({ missions: misiones, sessionId, at: now, libro: String(j.libro || "").slice(0, 80) });
+            // Las misiones que siguen con las mismas palabras conservan su marca de «hecho».
+            const done = prev ? misiones.map((m, i) => (prev.missions.some((pm, pi) => pm === m && prev.done.includes(pi)) ? i : -1)).filter(i => i >= 0) : [];
+            const clean = (x: any, n: number) => String(x || "").replace(/\s+/g, " ").trim().slice(0, n);
+            const rehacer = (Array.isArray(j.rehacer) ? j.rehacer : []).map((r: any) => ({ doc: clean(r?.doc, 120), motivo: clean(r?.motivo, 240), at: now })).filter((r: any) => r.doc).slice(0, 6);
+            const reemplaza = (Array.isArray(j.reemplaza) ? j.reemplaza : []).map((r: any) => clean(r, 300)).filter(Boolean).slice(0, 6);
+            // Lo marcado para rehacer en sesiones anteriores sigue ahí hasta que el autor lo marque como hecho.
+            const keepRedo = (prev?.rehacer || []).filter(r => !rehacer.some((n: any) => n.doc.toLowerCase() === r.doc.toLowerCase()));
+            await db.collection("users").doc(uid).collection("plan").doc("current").set({
+                missions: misiones, done, sessionId, at: now, libro: String(j.libro || "").slice(0, 80),
+                rehacer: [...keepRedo, ...rehacer].slice(-8), reemplaza, reemplazaAt: reemplaza.length ? now : "",
+            });
+            for (const r of reemplaza.slice(0, 3)) await noteDecision(uid, "arquitecto", `Cambió una decisión con el Arquitecto. ${r}`);
+            for (const r of rehacer.slice(0, 3)) await noteDecision(uid, "arquitecto", `Quedó en rehacer «${r.doc}»${r.motivo ? `: ${r.motivo}` : ""}`);
         }
         // Nov 2026: si decidieron quién narra, queda en «Decisiones del libro» (la biblioteca, Mira y el reporte lo respetan).
         const pov = String(j.pov || "").trim().slice(0, 300);

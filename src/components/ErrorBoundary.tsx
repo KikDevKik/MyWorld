@@ -1,3 +1,4 @@
+import { reportError } from '../services/errorReport';
 import React from 'react';
 
 interface Props {
@@ -24,6 +25,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (import.meta.env.DEV) {
       console.error('[ErrorBoundary]', error, info);
     }
+    reportError('pantalla', error, info?.componentStack || '');
   }
 
   render() {
