@@ -37,7 +37,7 @@ PRIMERO MIRA EN QUÉ MOMENTO ESTÁ LA CONVERSACIÓN. No respondes igual en cada 
 - IDEA RECIÉN LANZADA (o el autor pide opciones): ábrele el abanico con 2 o 3 caminos concretos y de verdad distintos entre sí (que cambien quién sufre, qué se sabe o qué está en juego; no tres versiones de lo mismo).
 - EL AUTOR YA ELIGIÓ O AÑADIÓ PIEZAS SUYAS: no abras otro abanico. Construye sobre SU versión: (1) recoge en una o dos líneas SOLO lo nuevo que acaba de decir, con sus palabras, para que vea que lo entendiste; (2) empuja un paso: una consecuencia que no ha visto, un hueco que habría que tapar o un «¿y si…?» pequeño DENTRO de su camino. Como mucho dos aportes.
 - NO VUELVAS A CONTAR LA IDEA ENTERA EN CADA TURNO. El resumen completo («queda así: …») se da una sola vez, cuando la idea toma forma por primera vez; después solo cuando él lo pida o cuando haya cambiado tanto que el anterior ya no sirva. Lo que ya quedó dicho en tus respuestas anteriores no se repite: él lo tiene delante.
-- EL AUTOR SOLO CONFIRMA O CELEBRA («sí», «me encanta», «perfecto»): respuesta corta, de dos a cuatro líneas. Di qué quedó decidido con eso (solo eso, no todo lo anterior) y que puede guardarla. Un aporte más únicamente si es un hueco que de verdad rompería la idea; si tú mismo dirías que «no rompe nada», no lo saques ahora. No reabras dudas de turnos anteriores.
+- EL AUTOR SOLO CONFIRMA O CELEBRA («sí», «me encanta», «perfecto»): respuesta corta, de dos a cuatro líneas. Di qué quedó decidido con eso (solo eso, no todo lo anterior) y que puede guardarla. Un aporte más únicamente si es un hueco que de verdad rompería la idea; si tú mismo dirías que «no rompe nada», no lo saques ahora. No reabras dudas de turnos anteriores ni menciones las preguntas que quedaron sin responder.
 - EL AUTOR DICE QUE ALGO QUEDA ABIERTO, QUE YA ESTÁ O QUE ES SUFICIENTE: respétalo. No preguntes por eso ni lo cierres por él. Dile en una línea qué quedó armado y qué quedó abierto a propósito, y que puede guardarla.
 - EL AUTOR PREGUNTA ALGO CONCRETO: responde eso primero y corto.
 
@@ -47,6 +47,8 @@ DE QUIÉN ES CADA COSA (lo más importante):
 - Cuando uses algo de su canon, di de qué documento sale («según Zoorians…») y apóyate en palabras que estén de verdad en el fragmento: antes de escribir «en X dice…», vuelve al fragmento y comprueba que lo dice. Un término entre comillas atribuido al canon tiene que estar ahí tal cual.
 - Si es algo que deduces o recuerdas a medias, no lo presentes como cita: dilo como duda («creo que en X se da a entender que…, ¿es así?»). Si no lo ves en los fragmentos, no lo afirmes: pregúntalo o propónlo como idea. Un aviso de choque con el canon que resulta falso le cuesta al autor más que no avisar.
 - Al recoger lo que él dijo, usa sus palabras y no le añadas nada.
+- Lo que TÚ deduces de lo que él dijo también es tuyo, no suyo. Si de «A» sacas «entonces B», dilo como lectura tuya («si te entiendo bien…», «eso implicaría que…»), no como un hecho de su idea.
+- DOCUMENTOS CORTADOS. Si un fragmento termina en «[AQUÍ SE CORTA…]» o a mitad de frase, no tienes el documento entero. Antes de decir que algo «no aparece», di que te llegó cortado y qué parte te falta, y pídele que lo adjunte entero desde «Fuentes» (ahí puede elegir documentos de su canon). Cuando él te diga que algo sí está escrito, créele: lo más probable es que esté en la parte que no recibiste.
 
 SUS REFERENCIAS (series, anime, películas, libros, juegos):
 - La primera vez que una referencia entra en la conversación, di en una frase qué tomas de ella (un recurso, una dinámica, una imagen); nunca copies su trama. Después no lo vuelvas a explicar: ya quedó dicho.
@@ -67,7 +69,9 @@ SIEMPRE:
 - Opina cuando ayude a elegir: cuál camino tomarías y por qué, en una o dos frases. No en cada respuesta, y sin el rótulo fijo «Mi opinión:»: si opinas, que entre en el texto.
 - Como mucho UNA pregunta por respuesta, y solo si su respuesta cambiaría la idea. Nunca una que ya contestó.
 - No empieces repitiendo cómo empezaste tu respuesta anterior, y no uses el mismo molde dos veces seguidas. Vale también para las muletillas de confirmación: si la anterior abrió con «Queda decidido:» o «Queda así:», esta abre de otra forma o entra directo al contenido.
-- Si no recibiste fragmentos de su canon, dilo como mucho una vez en toda la conversación y solo si hace falta; después trabaja con lo que él cuenta, sin repetir el aviso. Sin títulos; viñetas solo cuando haya de verdad varias opciones.
+- Si no recibiste fragmentos de su canon, dilo como mucho una vez en toda la conversación y solo si hace falta; después trabaja con lo que él cuenta, sin repetir el aviso.
+- Cuando el autor confirma un dato («sí, es el mismo X»), no lo repitas con «Entonces lo tomo así:»: úsalo directamente en lo que aportas.
+- Sin títulos. Viñetas solo cuando presentas caminos alternativos (normalmente la primera respuesta); cuando construyes sobre su versión, escribe en párrafos cortos, sin rótulos en negrita. Si tu respuesta anterior fue en viñetas, esta no.
 - Breve y vivo: entre 100 y 220 palabras salvo que pida más.
 - Cuando la idea ya tenga forma, termina con una línea «Idea: <título corto>» para que pueda guardarla. Mientras siga siendo la misma idea, conserva el mismo título.`;
 
@@ -126,6 +130,28 @@ async function referenceList(uid: string): Promise<{ id: string; name: string; p
         .map((f: any) => ({ id: f.id, name: String(f.name || "").replace(/\.md$/i, ""), path: String(f.path || "") }));
 }
 
+/** Documentos del canon del autor (para adjuntarlos enteros desde «Fuentes»). */
+async function canonList(uid: string): Promise<{ id: string; name: string; path: string }[]> {
+    const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category", "type", "mimeType", "driveId").limit(600).get();
+    return snap.docs
+        .map(d => ({ id: d.id, ...(d.data() as any) }))
+        .filter((f: any) => f.category !== "reference" && f.type !== "folder" && f.mimeType !== FOLDER && (!f.driveId || f.driveId === f.id))
+        .map((f: any) => ({ id: f.id, name: String(f.name || "").replace(/\.md$/i, ""), path: String(f.path || "") }))
+        .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
+/** El texto de un documento del índice, en orden y hasta maxChars. Si no cabe entero, lo dice al final:
+ *  antes la IA recibía el documento cortado a mitad de frase y creía que eso era todo. */
+async function indexedDoc(uid: string, fileId: string, maxChars: number): Promise<string> {
+    const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").doc(fileId).collection("chunks").select("text").get();
+    const parts = snap.docs.map(d => ({ n: Number(d.id.replace(/\D/g, "")) || 0, t: String((d.data() as any).text || "") })).sort((a, b) => a.n - b.n);
+    const full = parts.map(p => p.t).join("\n\n").trim();
+    if (full.length <= maxChars) return full;
+    const cut = full.slice(0, maxChars);
+    const end = Math.max(cut.lastIndexOf("\n"), cut.lastIndexOf(". "));
+    return `${cut.slice(0, end > maxChars * 0.7 ? end + 1 : maxChars).trim()}\n[AQUÍ SE CORTA: el documento sigue unas ${Math.round((full.length - maxChars) / 100) * 100} letras más que no recibiste. Si lo que falta importa para responder, dilo y pídele al autor que lo adjunte entero desde «Fuentes».]`;
+}
+
 /** « · cambió por última vez el 3 oct 2026» a partir de la fecha del índice; vacío si no hay fecha. */
 function dateTag(iso?: string): string {
     const d = iso ? new Date(iso) : null;
@@ -151,10 +177,11 @@ async function canonPeek(uid: string, text: string, requestData: any): Promise<s
                 const x: any = f.data();
                 const base = String(x.name || "").replace(/\.md$/i, "").toLowerCase().trim();
                 return x.category !== "reference" && base.length >= 4 && low.includes(base);
-            }).slice(0, 2);
+            }).slice(0, 3);
             for (const f of named) {
-                const chunks = await f.ref.collection("chunks").select("text").limit(3).get();
-                const t = chunks.docs.map(c => String((c.data() as any).text || "")).join("\n").trim().slice(0, 2000);
+                // Nov 2026: el documento nombrado entra casi entero y en orden. Antes llegaban 2.000 letras de tres trozos
+                // sin orden: «Errantes» se cortaba antes de las fases y la IA no veía lo que el autor sí había escrito.
+                const t = await indexedDoc(uid, f.id, 9000);
                 if (t) { out.push(`(${String((f.data() as any).name || "").replace(/\.md$/i, "")}${dateTag((f.data() as any).updatedAt)}) ${t}`); chars += t.length; }
             }
         } catch { /* sin índice: sigue con la búsqueda por parecido */ }
@@ -169,7 +196,7 @@ async function canonPeek(uid: string, text: string, requestData: any): Promise<s
             const c: any = d.data();
             if (c.category === "reference") continue;
             const t = String(c.text || "").trim();
-            if (!t || chars + t.length > 5000) continue;
+            if (!t || chars + t.length > 32000) continue;
             chars += t.length;
             out.push(`(${String(c.fileName || "").replace(/\.md$/i, "")}${dateTag(changed.get(d.ref.parent.parent?.path || ""))}) ${t}`);
         }
@@ -261,8 +288,8 @@ export const whatIf = onCall(
         const ref = sessionRef(uid);
 
         if (mode === "load") {
-            const [snap, refs] = await Promise.all([ref.get(), referenceList(uid)]);
-            return { messages: (snap.data() as any)?.messages || [], references: refs.filter(r => !r.path.startsWith(IDEAS_FOLDER + "/")) };
+            const [snap, refs, canon] = await Promise.all([ref.get(), referenceList(uid), canonList(uid).catch(() => [])]);
+            return { messages: (snap.data() as any)?.messages || [], references: refs.filter(r => !r.path.startsWith(IDEAS_FOLDER + "/")), canon };
         }
 
         // Nov 2026: «Esto no es mío». El autor dice qué inventó o entendió mal la IA; queda para todas las herramientas.
@@ -311,13 +338,21 @@ export const whatIf = onCall(
 
             const refs = await referenceList(uid);
             let refText = "";
-            if (selected.length && drive) {
+            if (selected.length) {
+                // Nov 2026: lo que el autor adjunta desde «Fuentes» entra entero (canon o recursos), no un trozo.
                 const parts: string[] = [];
+                const canon = selected.some(id => !refs.some(x => x.id === id)) ? await canonList(uid).catch(() => []) : [];
                 for (const id of selected) {
                     try {
                         const r = refs.find(x => x.id === id);
-                        const t = String(await _getDriveFileContentInternal(drive, id) || "").trim().slice(0, 3500);
-                        if (t) parts.push(`### ${r?.name || id}\n${t}`);
+                        const c = canon.find(x => x.id === id);
+                        if (!r && !c) continue; // solo documentos del propio autor
+                        let t = await indexedDoc(uid, id, 16000).catch(() => "");
+                        if (!t && drive) {
+                            const raw = String(await _getDriveFileContentInternal(drive, id) || "").trim();
+                            t = raw.length > 16000 ? `${raw.slice(0, 16000)}\n[AQUÍ SE CORTA: el documento sigue y no recibiste el resto.]` : raw;
+                        }
+                        if (t) parts.push(`### ${(r || c)!.name} (${c ? "canon" : "recurso, no canon"})\n${t}`);
                     } catch { /* ilegible */ }
                 }
                 refText = parts.join("\n\n");
@@ -334,7 +369,7 @@ export const whatIf = onCall(
                 memory ? `SU MUNDO (memoria del proyecto):\n${memory}` : "",
                 elsewhere,
                 canon ? `FRAGMENTOS DE SU CANON (cada uno empieza con el nombre del documento entre paréntesis y, si se sabe, cuándo cambió por última vez; sirven para no inventar y para avisar choques, no para limitar):\n${canon}` : "FRAGMENTOS DE SU CANON: ninguno esta vez. Trabaja con lo que cuenta el autor y no cites documentos. No hace falta avisarle que no los tienes, salvo que te pregunte por algo de su canon; y si ya se lo dijiste en esta conversación, no lo repitas.",
-                refText ? `REFERENCIAS QUE ELIGIÓ PARA ESTA CONVERSACIÓN:\n${refText}` : "",
+                refText ? `DOCUMENTOS QUE EL AUTOR ADJUNTÓ DESDE «FUENTES» (los eligió él para esta conversación: léelos enteros, son la referencia principal cuando hable de ellos):\n${refText}` : "",
                 refs.length ? `SUS REFERENCIAS EN RECURSOS (nombres): ${refs.filter(r => !r.path.startsWith(IDEAS_FOLDER + "/")).map(r => r.name).slice(0, 60).join(", ")}` : "",
             ].filter(Boolean).join("\n\n");
             // La última respuesta propia va completa: hace falta para no repetir su arranque ni su molde.

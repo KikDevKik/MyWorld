@@ -240,7 +240,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                                         onClick={() => setIsMisionesExpanded(false)}
                                         aria-hidden="true"
                                     />
-                                    <div className="absolute bottom-full left-0 mb-2 w-80 z-50 bg-titanium-900 border border-titanium-700 rounded-xl shadow-2xl overflow-hidden">
+                                    {/* Nov 2026: fijo a la ventana. Dentro de la barra quedaba recortado (la barra corta lo que se sale) y el botón parecía no hacer nada. */}
+                                    <div role="dialog" aria-label={t.roadmapMissions} className="fixed bottom-11 left-2 sm:left-4 w-80 max-w-[calc(100vw-1rem)] z-50 bg-titanium-900 border border-titanium-700 rounded-xl shadow-2xl overflow-hidden">
                                         {/* Header */}
                                         <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800">
                                             <div className="flex items-center gap-2">

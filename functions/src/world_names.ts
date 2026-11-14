@@ -147,8 +147,15 @@ const TERM_RE = /(?<![\p{L}\p{N}])([A-ZÁÉÍÓÚÑ][\p{L}]{1,}(?:(?:-|\s(?:(?:d
 function extractTerms(files: CorpusFile[]) {
     const stats = new Map<string, { total: number; files: Set<string>; title: boolean }>();
     const lowerFreq = new Map<string, number>();
+    // Nov 2026: expresiones comunes escritas en minúscula («en serio», «de verdad»), juntas y sin tildes.
+    // Si un «término» con mayúscula es una de ellas («Enserio», «EN SERIO»), no es un nombre del mundo: es ortografía.
+    const lowerPhrases = new Set<string>();
     for (const f of files) {
-        for (const w of f.text.match(/(?<![\p{L}])[a-záéíóúñ][\p{L}]+/gu) || []) lowerFreq.set(w, (lowerFreq.get(w) || 0) + 1);
+        const ws = f.text.match(/(?<![\p{L}])[a-záéíóúñ][\p{L}]*/gu) || [];
+        for (const w of ws) if (w.length > 1) lowerFreq.set(w, (lowerFreq.get(w) || 0) + 1);
+        for (let i = 0; i < ws.length; i++) {
+            if (i + 1 < ws.length) lowerPhrases.add(foldWord(ws[i] + ws[i + 1]));
+        }
     }
     const add = (t: string, fileId: string, title = false) => {
         const term = t.replace(/\s+/g, " ").trim();
@@ -173,6 +180,9 @@ function extractTerms(files: CorpusFile[]) {
             while (words.length && LINK.has(words[words.length - 1])) words.pop();
             term = words.join(" ");
             if (!term) continue;
+            // Gritos en los diálogos («EN SERIO», «QUÉ ESTUPIDEZ») no son nombres.
+            if (term.length > 3 && term === term.toUpperCase() && /\p{Lu}{2}/u.test(term)) continue;
+            if (term.split(/\s+/).length <= 2 && lowerPhrases.has(foldWord(term))) continue;
             if (!term.includes(" ") && !term.includes("-")) {
                 const low = term.toLowerCase();
                 if ((lowerFreq.get(low) || 0) > 2) continue; // palabra común con mayúscula inicial
@@ -187,6 +197,7 @@ function extractTerms(files: CorpusFile[]) {
     return stats;
 }
 
+const foldWord = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[-\s]+/g, "");
 const fold = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[-\s]+/g, "");
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
 
@@ -386,6 +397,7 @@ REGLAS:
 - "sugerido": el nombre que parece el actual (el título del documento que lo define, o el más usado). El autor decide al final.
 - "tipo": "ortografia" si solo cambian tildes, guiones, espacios o mayúsculas; "renombre" si cambian las palabras.
 - "razon": una frase corta y concreta para el autor, en español, con tono cercano.
+- Solo nombres y términos PROPIOS del mundo del autor (personajes, lugares, razas, poderes, objetos, instituciones). Las palabras y expresiones comunes del idioma («en serio», «de verdad», un insulto, una exclamación) NO van, aunque estén escritas de dos formas: eso es ortografía, no coherencia del canon.
 - Si no hay nada, devuelve "grupos": [].
 
 Responde SOLO con JSON: {"grupos":[{"variantes":["…","…"],"sugerido":"…","tipo":"renombre","razon":"…"}]}`;

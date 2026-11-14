@@ -7,6 +7,8 @@ import { MiraSprite } from '../mira/MiraSprite';
 import { X, FileSearch, Loader2, LocateFixed, Check, RefreshCw, BookOpen, Sparkles, AlertTriangle, SpellCheck, ShieldCheck, Users, HelpCircle, MessageSquareQuote, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
+import { getFirestore, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { textHash } from '../../utils/textHash';
 import { costSuffix, showCosts } from '../../utils/costHint';
 import { locateQuote, locateWord } from '../../utils/locateQuote';
@@ -183,6 +185,23 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
     const [lectorOpen, setLectorOpen] = useState(false);
     const [savingLector, setSavingLector] = useState(false);
     const doneKey = `myworld_report_done_${fileId}`;
+    // Nov 2026: el plan del libro (lo que se decidió con el Arquitecto). Si cambió después del reporte, o si este
+    // capítulo quedó en rehacerse, se avisa arriba: antes solo se enteraba quien pedía un reporte nuevo.
+    const [plan, setPlan] = useState<{ at?: string; rehacer: { doc: string; motivo?: string; hecho?: boolean }[] } | null>(null);
+    useEffect(() => {
+        const uid = getAuth().currentUser?.uid;
+        if (!uid) return;
+        return onSnapshot(doc(getFirestore(), 'users', uid, 'plan', 'current'), snap => {
+            const d: any = snap.exists() ? snap.data() : null;
+            setPlan(d ? { at: d.at, rehacer: Array.isArray(d.rehacer) ? d.rehacer : [] } : null);
+        }, () => { /* sin plan o sin permiso */ });
+    }, []);
+    const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\.md$/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const redo = useMemo(() => {
+        const base = norm(fileName || '');
+        if (!plan || base.length < 3) return null;
+        return plan.rehacer.find(r => !r.hecho && r.doc && (norm(r.doc).includes(base) || base.includes(norm(r.doc)))) || null;
+    }, [plan, fileName]);
     // Nov 2026: tutorial progresivo: la primera vez que entras al estudio.
     useEffect(() => { requestTip('estudio.reporte'); }, []);
     const [done, setDone] = useState<Record<string, boolean>>(() => {
@@ -338,6 +357,26 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
         </section>
     );
 
+    const markRedone = () => {
+        const uid = getAuth().currentUser?.uid;
+        if (!uid || !plan || !redo) return;
+        const rehacer = plan.rehacer.map(r => (r === redo ? { ...r, hecho: true } : r));
+        updateDoc(doc(getFirestore(), 'users', uid, 'plan', 'current'), { rehacer })
+            .then(() => toast.success('Anotado: este capítulo ya está rehecho.'))
+            .catch(() => toast.error('No pude guardarlo. Intenta de nuevo.'));
+    };
+    const planNewer = !!(report && plan?.at && meta.createdAt && new Date(plan.at).getTime() > new Date(meta.createdAt).getTime());
+    const planBanner = (redo || planNewer) && (
+        <div className="flex items-start gap-2 rounded-lg border border-mira/40 bg-mira-bg p-2.5 text-titanium-100">
+            <Sparkles size={13} className="mt-0.5 shrink-0 text-mira" />
+            <span className="leading-relaxed">
+                {redo ? <>Con el Arquitecto quedaste en <b>rehacer este capítulo</b>{redo.motivo ? `: ${redo.motivo}` : '.'} </> : null}
+                {planNewer ? <>Tu plan del libro cambió después de este reporte, así que no lo tiene en cuenta. </> : null}
+                {report ? <button onClick={generate} disabled={generating} className="underline disabled:opacity-50">Hacer el reporte de nuevo</button> : null}
+                {redo ? <> · <button onClick={markRedone} className="underline text-titanium-300">Ya lo rehice</button></> : null}
+            </span>
+        </div>
+    );
     const stale = useMemo(() => !!(meta.contentHash && report && textHash(getText()) !== meta.contentHash), [meta.contentHash, report, getText]);
     const fecha = meta.createdAt ? new Date(meta.createdAt).toLocaleString() : '';
 
@@ -502,6 +541,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                 ) : !report ? (
                     <div className="py-6 text-center space-y-3">
                         <MiraSprite pose="leyendo" className="mx-auto" />
+                        {redo && <div className="text-left">{planBanner}</div>}
                         <p className="text-titanium-300">Cuando termines un capítulo, pide un reporte: qué funciona, qué corregir y dónde está cada cosa en tu texto, ortografía con corrección de un clic y lecturas apoyadas en tus referencias. Debajo puedes pedir también la revisión del canon y las tres lecturas.</p>
                         {showCosts() && <p className="text-titanium-600">Usa Claude · cuesta alrededor de US$0,10 por reporte.</p>}
                         <button data-tour="reporte-generar" onClick={generate} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-coral hover:brightness-110 px-4 py-2 text-xs font-semibold text-on-coral">
@@ -516,6 +556,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                     </div>
                 ) : (
                     <>
+                        {planBanner}
                         {stale && (
                             <div className="flex items-start gap-2 rounded-lg border border-amber-700/40 bg-amber-900/10 p-2.5 text-amber-200/90">
                                 <AlertTriangle size={13} className="mt-0.5 shrink-0" />

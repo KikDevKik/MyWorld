@@ -102,7 +102,10 @@ export async function fileText(uid: string, fileId: string, maxChars: number): P
     const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").doc(fileId).collection("chunks").select("text").get();
     const parts = snap.docs.map(d => ({ n: Number(d.id.replace(/\D/g, "")) || 0, t: String((d.data() as any).text || "") })).sort((a, b) => a.n - b.n);
     let out = "";
-    for (const p of parts) { if (out.length + p.t.length > maxChars) break; out += (out ? "\n\n" : "") + p.t; }
+    // Nov 2026: si el documento no cabe entero, se dice. Antes llegaba cortado sin aviso y la IA creía que eso era todo.
+    let cut = false;
+    for (const p of parts) { if (out.length + p.t.length > maxChars) { cut = true; break; } out += (out ? "\n\n" : "") + p.t; }
+    if (cut) out += `${out ? "\n" : ""}[AQUÍ SE CORTA: el documento sigue y no recibiste el resto. Si lo que falta importa, dilo y pídele al autor que lo traiga entero.]`;
     return out;
 }
 

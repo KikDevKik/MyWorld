@@ -79,6 +79,7 @@ const fmtDate = (iso?: string) => {
 export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
     const [messages, setMessages] = useState<Msg[]>([]);
     const [refs, setRefs] = useState<RefFile[]>([]);
+    const [canonRefs, setCanonRefs] = useState<RefFile[]>([]);
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [selected, setSelected] = useState<string[]>([]);
     const [input, setInput] = useState('');
@@ -102,7 +103,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
     useEffect(() => {
         let alive = true;
         callFunction<any>('whatIf', { mode: 'load' })
-            .then(r => { if (alive) { setMessages(r?.messages || []); setRefs(r?.references || []); } })
+            .then(r => { if (alive) { setMessages(r?.messages || []); setRefs(r?.references || []); setCanonRefs(r?.canon || []); } })
             .catch(() => {})
             .finally(() => alive && setLoading(false));
         return () => { alive = false; };
@@ -250,7 +251,10 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
     };
 
     const toggleRef = (id: string) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : (s.length >= 3 ? (toast.info('Hasta 3 fuentes a la vez.'), s) : [...s, id]));
-    const shownRefs = refs.filter(r => !refFilter || r.name.toLowerCase().includes(refFilter.toLowerCase()) || r.path.toLowerCase().includes(refFilter.toLowerCase()));
+    const matches = (r: RefFile) => !refFilter || r.name.toLowerCase().includes(refFilter.toLowerCase()) || r.path.toLowerCase().includes(refFilter.toLowerCase());
+    const shownRefs = refs.filter(matches);
+    const shownCanon = canonRefs.filter(matches);
+    const allRefs = useMemo(() => [...canonRefs, ...refs], [canonRefs, refs]);
     const parsed = useMemo(() => (sheet?.content ? parseIdeaNote(sheet.content) : null), [sheet?.content]);
 
     const ideasList = (
@@ -354,7 +358,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                                     </span>
                                 ))}
                                 {selected.map(id => {
-                                    const r = refs.find(x => x.id === id);
+                                    const r = allRefs.find(x => x.id === id);
                                     return <span key={id} className="inline-flex items-center gap-1 rounded-full bg-amber-900/30 pl-2.5 pr-1 py-0.5 text-[11.5px] text-amber-100"><BookOpen size={10} aria-hidden="true" />{r?.name || id}<button onClick={() => toggleRef(id)} aria-label={`Quitar ${r?.name || 'fuente'}`} className="rounded-full p-0.5 hover:bg-amber-800/50"><X size={10} aria-hidden="true" /></button></span>;
                                 })}
                             </div>
@@ -371,24 +375,31 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                                 {refsOpen && (
                                     <div role="dialog" aria-label="Tus fuentes" className="absolute bottom-full left-0 z-20 mb-2 w-[min(340px,calc(100vw-2rem))] rounded-xl border border-titanium-700 bg-titanium-900 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
                                         <p className="text-[12px] font-medium text-titanium-100">Tus fuentes</p>
-                                        <p className="mt-0.5 text-[11.5px] leading-relaxed text-titanium-400">Marca hasta 3 archivos de Recursos para que entren completos en la conversación.</p>
-                                        {refs.length > 8 && (
+                                        <p className="mt-0.5 text-[11.5px] leading-relaxed text-titanium-400">Marca hasta 3 documentos para que entren enteros en la conversación. Sirve cuando necesitas que lea uno completo.</p>
+                                        {allRefs.length > 8 && (
                                             <input autoFocus value={refFilter} onChange={e => setRefFilter(e.target.value)} placeholder="Buscar…" aria-label="Buscar en tus fuentes" className="mt-2 w-full rounded-md border border-titanium-700 bg-titanium-950 px-2 py-1.5 text-[12px] text-titanium-100 outline-none focus:border-amber-700" />
                                         )}
-                                        {!refs.length ? (
-                                            <p className="mt-2 text-[12px] text-titanium-500">No encontré archivos en Recursos. Pulsa «Sincronizar» en el explorador.</p>
+                                        {!allRefs.length ? (
+                                            <p className="mt-2 text-[12px] text-titanium-500">No encontré documentos. Pulsa «Sincronizar» en el explorador.</p>
                                         ) : (
-                                            <ul className="mt-2 max-h-56 space-y-0.5 overflow-y-auto pr-1">
-                                                {shownRefs.map(r => (
-                                                    <li key={r.id}>
-                                                        <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] text-titanium-200 hover:bg-titanium-800/60" title={r.path}>
-                                                            <input type="checkbox" checked={selected.includes(r.id)} onChange={() => toggleRef(r.id)} className="accent-amber-600" />
-                                                            <span className="truncate">{r.name}</span>
-                                                        </label>
-                                                    </li>
+                                            <div className="mt-2 max-h-64 overflow-y-auto pr-1">
+                                                {([['Canon', 'lo que ya es verdad en tu historia', shownCanon], ['Recursos', 'notas e inspiración, no canon', shownRefs]] as const).map(([title, hint, list]) => !!list.length && (
+                                                    <div key={title} className="mb-2 last:mb-0">
+                                                        <p className="sticky top-0 bg-titanium-900 px-2 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-titanium-400">{title} <span className="font-normal normal-case tracking-normal text-titanium-500">· {hint}</span></p>
+                                                        <ul className="space-y-0.5">
+                                                            {list.map(r => (
+                                                                <li key={r.id}>
+                                                                    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] text-titanium-200 hover:bg-titanium-800/60" title={r.path}>
+                                                                        <input type="checkbox" checked={selected.includes(r.id)} onChange={() => toggleRef(r.id)} className="accent-amber-600" />
+                                                                        <span className="truncate">{r.name}</span>
+                                                                    </label>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
                                                 ))}
-                                                {!shownRefs.length && <li className="px-2 py-1.5 text-[12px] text-titanium-500">Nada con ese nombre.</li>}
-                                            </ul>
+                                                {!shownRefs.length && !shownCanon.length && <p className="px-2 py-1.5 text-[12px] text-titanium-500">Nada con ese nombre.</p>}
+                                            </div>
                                         )}
                                     </div>
                                 )}
